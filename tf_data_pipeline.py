@@ -4,7 +4,6 @@ from pathlib import Path
 
 experimental_reads = max(2, mp.cpu_count() - 2) // 2
 
-total_batch_size = 2048
 SKIP = 32
 SKIP_MULTIPLE = 1024
 shuffle_size = 524288
@@ -107,7 +106,7 @@ def read(x):
         num_parallel_reads=experimental_reads)
 
 
-def get_dataset(target_path):
+def get_dataset(target_path, batch_size):
     target_path = Path(target_path)  # In case it's not already a Path object
     train_chunks = [str(pth) for pth in target_path.glob('**/*.gz')]
     extractor = extract_inputs_outputs_if1
@@ -121,6 +120,6 @@ def get_dataset(target_path):
         .interleave(read, num_parallel_calls=2) \
         .batch(SKIP_MULTIPLE * SKIP).map(semi_sample).unbatch() \
         .shuffle(shuffle_size) \
-        .batch(total_batch_size).map(extractor)
+        .batch(batch_size).map(extractor)
     # Dataset returns input_planes, policy label, wdl label, q label, moves left label
     return train_dataset

@@ -12,9 +12,10 @@ if __name__ == '__main__':
     parser.add_argument('--l2_reg', type=float, default=0.0005)
     parser.add_argument('--learning_rate', type=float, default=3e-4)
     parser.add_argument('--dataset_path', type=Path, required=True)
+    parser.add_argument('--batch_size', type=int, default=1024)
     args = parser.parse_args()
     model = LeelaZeroNet(num_filters=args.num_filters, num_residual_blocks=args.num_residual_blocks,
                          se_ratio=args.se_ratio, l2_reg=args.l2_reg)
     model.compile(optimizer=tf.keras.optimizers.Adam(args.learning_rate))
-    dataset = get_dataset(args.dataset_path)
+    dataset = get_dataset(args.dataset_path, args.batch_size)
     model.fit(dataset, epochs=999, steps_per_epoch=8192)
