@@ -1,18 +1,13 @@
 import tensorflow as tf
 import multiprocessing as mp
-import proto.net_pb2 as pb
 from pathlib import Path
 
 experimental_reads = max(2, mp.cpu_count() - 2) // 2
 
 total_batch_size = 2048
-batch_splits = 1
 SKIP = 32
 SKIP_MULTIPLE = 1024
 shuffle_size = 524288
-split_batch_size = total_batch_size // batch_splits
-input_type = 'classic'
-INPUT_MODE = pb.NetworkFormat.INPUT_CLASSICAL_112_PLANE
 
 
 def extract_policy_bits(raw):
@@ -126,6 +121,6 @@ def get_dataset(target_path):
         .interleave(read, num_parallel_calls=2) \
         .batch(SKIP_MULTIPLE * SKIP).map(semi_sample).unbatch() \
         .shuffle(shuffle_size) \
-        .batch(split_batch_size).map(extractor)
+        .batch(total_batch_size).map(extractor)
     # Dataset returns input_planes, policy label, wdl label, q label, moves left label
     return train_dataset
