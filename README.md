@@ -53,6 +53,10 @@ of the GPU - if you can find any tricks to speed up the pipeline, please let me 
 As for data, I'm working on building a standard dataset for benchmarking, which I'll probably host as a torrent. It's not 
 here yet, unfortunately!
 
+### How do I actually run training?
+
+Just run `tf_train.py`! You'll need a dataset, though - I'm working on that bit.
+
 ### Roadmap for this repo
 
 Right now this repo is very unfinished, but the rough plan is:
