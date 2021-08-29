@@ -2,15 +2,14 @@ import tensorflow as tf
 from tf_layers import ConvBlock, ResidualBlock, ConvolutionalPolicyHead, ConvolutionalValueOrMovesLeftHead
 from tf_losses import policy_loss, value_loss, moves_left_loss, loss_mix
 
-Q_RATIO = 0
 
-
-def qmix(z, q):
-    return q * Q_RATIO + z * (1 - Q_RATIO)
+def qmix(z, q, q_ratio):
+    return q * q_ratio + z * (1 - q_ratio)
 
 
 class LeelaZeroNet(tf.keras.Model):
-    def __init__(self, num_filters, num_residual_blocks, se_ratio, l2_reg):
+    def __init__(self, num_filters, num_residual_blocks, se_ratio, l2_reg, policy_loss_weight,
+                 value_loss_weight, moves_left_loss_weight, q_ratio):
         super().__init__()
         self.input_reshape = tf.keras.layers.Reshape((112, 8, 8))
         self.input_block = ConvBlock(filter_size=3, output_channels=num_filters, l2_reg=l2_reg, bn_scale=True,
@@ -24,6 +23,10 @@ class LeelaZeroNet(tf.keras.Model):
         # Moves left cannot be less than 0, so we use relu to clamp
         self.moves_left_head = ConvolutionalValueOrMovesLeftHead(output_dim=1, num_filters=8, hidden_dim=128,
                                                                  l2_reg=l2_reg, relu=True)
+        self.policy_loss_weight = policy_loss_weight
+        self.value_loss_weight = value_loss_weight
+        self.moves_left_loss_weight = moves_left_loss_weight
+        self.q_ratio = q_ratio
 
     def call(self, inputs):
         flow = self.input_reshape(inputs)
@@ -37,13 +40,17 @@ class LeelaZeroNet(tf.keras.Model):
 
     def train_step(self, inputs):
         input_planes, policy_target, wdl_target, q_target, moves_left_target = inputs
-        value_target = qmix(wdl_target, q_target)
+        value_target = qmix(wdl_target, q_target, self.q_ratio)
         with tf.GradientTape() as tape:
             policy_out, value_out, moves_left_out = self(input_planes)
             p_loss = policy_loss(policy_target, policy_out)
             v_loss = value_loss(value_target, value_out)
             ml_loss = moves_left_loss(moves_left_target, moves_left_out)
-            total_loss = loss_mix(p_loss, v_loss, ml_loss)
+            total_loss = (
+                    self.policy_loss_weight * p_loss
+                    + self.value_loss_weight * v_loss
+                    + self.moves_left_loss_weight * ml_loss
+            )
         trainable_vars = self.trainable_variables
         gradients = tape.gradient(total_loss, trainable_vars)
         self.optimizer.apply_gradients(zip(gradients, trainable_vars))
