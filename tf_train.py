@@ -10,8 +10,8 @@ if __name__ == '__main__':
     parser.add_argument('--num_residual_blocks', type=int, default=10)
     parser.add_argument('--se_ratio', type=int, default=8)
     parser.add_argument('--l2_reg', type=float, default=0.0005)
-    parser.add_argument('--learning_rate', type=float, default=1e-4)
-    parser.add_argument('--dataset_path', type=Path)
+    parser.add_argument('--learning_rate', type=float, default=3e-4)
+    parser.add_argument('--dataset_path', type=Path, required=True)
     args = parser.parse_args()
     model = LeelaZeroNet(num_filters=args.num_filters, num_residual_blocks=args.num_residual_blocks,
                          se_ratio=args.se_ratio, l2_reg=args.l2_reg)
