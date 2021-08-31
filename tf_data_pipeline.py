@@ -101,13 +101,13 @@ def read(x):
 
 def get_dataset(target_path, batch_size):
     target_path = Path(target_path)  # In case it's not already a Path object
-    train_chunks = [str(pth) for pth in target_path.glob('**/*.gz')]
+    train_chunks = [str(pth) for pth in target_path.glob('**/*.gz')][:1_000_000]
     extractor = extract_inputs_outputs_if1
     #
     # Line 1: Shuffle the list of input files, repeat, and make batches of 256 files at a time
     # Line 2: Pass a list of 256 files to tf.data.FixedLengthRecordDataset. Interleave results from many of these calls.
     # Line 3: For each set of 32 * 1024 positions, subsample so we only take 1024 of them
-    # Line 4 (missing): Shuffle with a large shuffle buffer
+    # Line 4  Shuffle with a large shuffle buffer
     # Line 5: Batch the output data and map each batch through the extractor
     train_dataset = tf.data.Dataset.from_tensor_slices(train_chunks).shuffle(len(train_chunks)).repeat().batch(256) \
         .interleave(read, num_parallel_calls=1) \
