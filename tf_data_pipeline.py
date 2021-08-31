@@ -6,7 +6,7 @@ experimental_reads = max(2, mp.cpu_count() - 2) // 2
 
 SKIP = 32
 SKIP_MULTIPLE = 1024
-shuffle_size = 524288
+SHUFFLE_SIZE = 2 ** 17
 
 
 def extract_policy_bits(raw):
@@ -69,10 +69,6 @@ def extract_outputs(raw):
 def extract_inputs_outputs_if1(raw):
     # first 4 bytes in each batch entry are boring.
     # Next 4 change how we construct some of the unit planes.
-    # input_format = tf.reshape(
-    #    tf.io.decode_raw(tf.strings.substr(raw, 4, 4), tf.int32),
-    #    [-1, 1, 1, 1])
-    # tf.debugging.assert_equal(input_format, tf.ones_like(input_format))
 
     policy, bit_planes = extract_policy_bits(raw)
 
@@ -89,9 +85,6 @@ def extract_inputs_outputs_if1(raw):
     z, q, ply_count = extract_outputs(raw)
 
     return inputs, policy, z, q, ply_count
-
-
-# extractor function we want is extract_inputs_outputs_if1
 
 
 def semi_sample(x):
@@ -117,9 +110,23 @@ def get_dataset(target_path, batch_size):
     # Line 4 (missing): Shuffle with a large shuffle buffer
     # Line 5: Batch the output data and map each batch through the extractor
     train_dataset = tf.data.Dataset.from_tensor_slices(train_chunks).shuffle(len(train_chunks)).repeat().batch(256) \
-        .interleave(read, num_parallel_calls=2) \
+        .interleave(read, num_parallel_calls=1) \
         .batch(SKIP_MULTIPLE * SKIP).map(semi_sample).unbatch() \
-        .shuffle(shuffle_size) \
+        .shuffle(SHUFFLE_SIZE) \
         .batch(batch_size).map(extractor)
+
     # Dataset returns input_planes, policy label, wdl label, q label, moves left label
     return train_dataset
+
+
+if __name__ == '__main__':
+    from tqdm import tqdm
+    import sys
+    from pathlib import Path
+    target_dir = Path(sys.argv[1])
+    assert target_dir.is_dir()
+    print("Testing data pipeline...")
+    print(f"Loading from directory {target_dir}")
+    dataset = get_dataset(target_dir, batch_size=1024)
+    for _ in tqdm(dataset):
+        pass

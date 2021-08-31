@@ -21,7 +21,7 @@ if __name__ == '__main__':
     # people's unless they are kept at the defaults.
     parser.add_argument('--policy_loss_weight', type=float, default=1.0)
     parser.add_argument('--value_loss_weight', type=float, default=1.6)
-    parser.add_argument('--moves_left_loss_weight', type=float, defualt=0.5)
+    parser.add_argument('--moves_left_loss_weight', type=float, default=0.5)
     parser.add_argument('--q_ratio', type=float, default=0.2)
     args = parser.parse_args()
     model = LeelaZeroNet(num_filters=args.num_filters,

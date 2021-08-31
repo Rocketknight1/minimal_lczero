@@ -1,6 +1,6 @@
 import tensorflow as tf
 from tf_layers import ConvBlock, ResidualBlock, ConvolutionalPolicyHead, ConvolutionalValueOrMovesLeftHead
-from tf_losses import policy_loss, value_loss, moves_left_loss, loss_mix
+from tf_losses import policy_loss, value_loss, moves_left_loss
 
 
 def qmix(z, q, q_ratio):
