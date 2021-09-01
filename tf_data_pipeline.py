@@ -48,11 +48,13 @@ def extract_rule50_zero_one(raw):
 
 
 def extract_outputs(raw):
-    # winner is stored in one signed byte and needs to be converted to one hot.
-    winner = tf.cast(
-        tf.io.decode_raw(tf.strings.substr(raw, 8279, 1), tf.int8), tf.float32)
-    winner = tf.tile(winner, [1, 3])
-    z = tf.cast(tf.equal(winner, [1., 0., -1.]), tf.float32)
+    # Result distribution needs to be calculated from q and d.
+    z_q = tf.io.decode_raw(tf.strings.substr(raw, 8308, 4), tf.float32)
+    z_d = tf.io.decode_raw(tf.strings.substr(raw, 8312, 4), tf.float32)
+    z_q_w = 0.5 * (1.0 - z_d + z_q)
+    z_q_l = 0.5 * (1.0 - z_d - z_q)
+
+    z = tf.concat([z_q_w, z_d, z_q_l], 1)
 
     # Outcome distribution needs to be calculated from q and d.
     best_q = tf.io.decode_raw(tf.strings.substr(raw, 8284, 4), tf.float32)
@@ -94,7 +96,7 @@ def semi_sample(x):
 def read(x):
     return tf.data.FixedLengthRecordDataset(
         x,
-        8308,
+        8356,
         compression_type='GZIP',
         num_parallel_reads=experimental_reads)
 
