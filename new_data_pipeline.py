@@ -110,7 +110,7 @@ def offset_generator(batch_size, record_size):
 
 def data_generator(files, batch_size):
     file_gen = file_generator(files)
-    offset_gen = offset_generator(batch_size=1024, record_size=RECORD_SIZE)
+    offset_gen = offset_generator(batch_size=BATCH_SIZE, record_size=RECORD_SIZE)
     data = []
     current_file = next(file_gen)
     file_ptr = 0
@@ -134,7 +134,7 @@ def data_worker(files, batch_size, array_ready_event, main_process_access_event,
     shared_arrays = [np.ndarray(shape, dtype=np.float32, buffer=mem.buf)
                      for shape, mem in zip(ARRAY_SHAPES, shared_mem)]
     file_gen = file_generator(files)
-    offset_gen = offset_generator(batch_size=1024, record_size=RECORD_SIZE)
+    offset_gen = offset_generator(batch_size=BATCH_SIZE, record_size=RECORD_SIZE)
     data = []
     current_file = next(file_gen)
     file_ptr = 0
@@ -186,7 +186,7 @@ def multiprocess_generator(chunk_dir):
         shared_mem_names = [mem.name for mem in process_shared_mem]
         process = ctx.Process(target=data_worker, kwargs={
             "files": worker_file_lists[i],
-            "batch_size": 1024, "array_ready_event": array_ready_event,
+            "batch_size": BATCH_SIZE, "array_ready_event": array_ready_event,
             "main_process_access_event": main_process_access_event,
             "shared_array_names": shared_mem_names}, daemon=True)
         process.start()
@@ -204,12 +204,19 @@ def multiprocess_generator(chunk_dir):
             if not array_ready_event.is_set():
                 continue
             random_indices = np.random.choice(SHUFFLE_BUFFER_SIZE, size=BATCH_SIZE, replace=False)
-            batch = [np.copy(shuffle_buffer[random_indices]) for shuffle_buffer in shuffle_buffers]
+            batch = tuple([np.copy(shuffle_buffer[random_indices]) for shuffle_buffer in shuffle_buffers])
             for arr, shuffle_buffer in zip(shared_arrs, shuffle_buffers):
                 shuffle_buffer[random_indices] = arr
             array_ready_event.clear()
             main_process_access_event.set()
             yield batch
+
+
+def make_callable(chunk_dir):
+    # Because tf.data needs to be able to reinitialize
+    def return_gen():
+        return multiprocess_generator(chunk_dir)
+    return return_gen
 
 
 def main():
