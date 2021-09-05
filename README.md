@@ -55,7 +55,14 @@ here yet, unfortunately!
 
 ### How do I actually run training?
 
-Just run `tf_train.py`! You'll need a dataset, though - I'm working on that bit.
+Just run `tf_train.py`! You'll need a dataset, though - I'm working on that bit. In the meantime, people familiar
+with Leela can use any directory of v6 chunks.
+
+### How do I run PyTorch training?
+
+Just run `pt_train.py`! It takes the same arguments as `tf_train.py`, but training seems slower right now 
+in terms of both epoch speed and iterations to achieve the same loss. I suspect there are a couple of bugs
+or layers that aren't quite equivalent in there still, but I'm working on it!
 
 ### Roadmap for this repo
 
