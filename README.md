@@ -69,6 +69,6 @@ or layers that aren't quite equivalent in there still, but I'm working on it!
 Right now this repo is very unfinished, but the rough plan is:
 
 1) Verify that our training matches the original repo and no bugs have snuck in.
-2) Add model checkpointing and Tensorboard logging.
-3) Build a standard dataset and validation set and host it somewhere accessible. Also build a smaller dataset that people can experiment with without having to download the whole training set.
-4) Add PyTorch versions of everything.
+2) Verify that PyTorch training also matches.
+3) Add model checkpointing and Tensorboard logging.
+4) Build a standard dataset and validation set and host it somewhere accessible. Also build a smaller dataset that people can experiment with without having to download the whole training set.
