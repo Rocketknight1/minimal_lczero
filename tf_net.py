@@ -36,7 +36,7 @@ class LeelaZeroNet(tf.keras.Model):
         policy_out = self.policy_head(flow)
         value_out = self.value_head(flow)
         moves_left_out = self.moves_left_head(flow)
-        return policy_out, value_out, moves_left_out
+        return tf.cast(policy_out, tf.float32), tf.cast(value_out, tf.float32), tf.cast(moves_left_out, tf.float32)
 
     def train_step(self, inputs):
         input_planes, policy_target, wdl_target, q_target, moves_left_target = inputs

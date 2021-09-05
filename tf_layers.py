@@ -127,7 +127,7 @@ class DensePolicyHead(tf.keras.layers.Layer):
     def __init__(self, hidden_dim=128):
         super().__init__()
         self.fc1 = tf.keras.layers.Dense(hidden_dim, kernel_initializer='glorot_normal',
-                                         name='policy/dense1')
+                                         name='policy/dense1', activation='relu')
         # No l2_reg on the final layer, because it's not going to be followed by a batchnorm
         self.fc_final = tf.keras.layers.Dense(1858,
                                               kernel_initializer='glorot_normal',

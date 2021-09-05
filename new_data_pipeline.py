@@ -9,9 +9,9 @@ from multiprocessing.shared_memory import SharedMemory
 
 RECORD_SIZE = 8356
 SKIP_FACTOR = 32
-NUM_WORKERS = 16
+NUM_WORKERS = 12
 BATCH_SIZE = 1024
-SHUFFLE_BUFFER_SIZE = 2 ** 18
+SHUFFLE_BUFFER_SIZE = 2 ** 19
 assert SHUFFLE_BUFFER_SIZE % BATCH_SIZE == 0  # This simplifies my life later on
 ARRAY_SHAPES = [(BATCH_SIZE, 112, 64), (BATCH_SIZE, 1858), (BATCH_SIZE, 3), (BATCH_SIZE, 3), (BATCH_SIZE, 1)]
 ARRAY_SIZES = [int(np.prod(shape)) * 4 for shape in ARRAY_SHAPES]

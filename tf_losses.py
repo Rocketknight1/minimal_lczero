@@ -2,7 +2,7 @@ import tensorflow as tf
 
 def policy_loss(target, output):
     # Illegal moves are marked by a value of -1 in the labels - we mask these with large negative values
-    output = tf.where(target < 0, -1e10, output)
+    output = tf.where(target < 0, -1e5, output)
     # The large negative values will still break the loss, so we replace them with 0 once we finish masking
     target = tf.nn.relu(target)
     # The stop gradient is maybe paranoia, but it can't hurt

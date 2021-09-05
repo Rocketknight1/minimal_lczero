@@ -25,6 +25,7 @@ if __name__ == '__main__':
     parser.add_argument('--q_ratio', type=float, default=0.2)
     args = parser.parse_args()
     tf.config.optimizer.set_jit(True)
+    # tf.keras.mixed_precision.set_global_policy("mixed_float16")
     model = LeelaZeroNet(num_filters=args.num_filters,
                          num_residual_blocks=args.num_residual_blocks,
                          se_ratio=args.se_ratio,
