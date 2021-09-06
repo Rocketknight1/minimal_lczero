@@ -13,6 +13,7 @@ if __name__ == '__main__':
     parser.add_argument('--l2_reg', type=float, default=0.0005)
     parser.add_argument('--learning_rate', type=float, default=3e-4)
     parser.add_argument('--max_grad_norm', type=float, default=5.6)
+    parser.add_argument('--mixed_precision', action='store_true')
     # These parameters control the data pipeline
     parser.add_argument('--dataset_path', type=Path, required=True)
     parser.add_argument('--batch_size', type=int, default=1024)
@@ -27,8 +28,9 @@ if __name__ == '__main__':
     parser.add_argument('--moves_left_loss_weight', type=float, default=0.5)
     parser.add_argument('--q_ratio', type=float, default=0.2)
     args = parser.parse_args()
+    if args.mixed_precision:
+        tf.keras.mixed_precision.set_global_policy("mixed_float16")
     tf.config.optimizer.set_jit(True)
-    # tf.keras.mixed_precision.set_global_policy("mixed_float16")
     model = LeelaZeroNet(num_filters=args.num_filters,
                          num_residual_blocks=args.num_residual_blocks,
                          se_ratio=args.se_ratio,
@@ -37,7 +39,10 @@ if __name__ == '__main__':
                          value_loss_weight=args.value_loss_weight,
                          moves_left_loss_weight=args.moves_left_loss_weight,
                          q_ratio=args.q_ratio)
-    model.compile(optimizer=tf.keras.optimizers.Adam(args.learning_rate, global_clipnorm=args.max_grad_norm))
+    optimizer = tf.keras.optimizers.Adam(args.learning_rate, global_clipnorm=args.max_grad_norm)
+    if args.mixed_precision:
+        optimizer = tf.keras.mixed_precision.LossScaleOptimizer(optimizer)
+    model.compile(optimizer=optimizer)
     array_shapes = [tuple([args.batch_size] + list(shape)) for shape in ARRAY_SHAPES_WITHOUT_BATCH]
     output_signature = tuple([tf.TensorSpec(shape=shape, dtype=tf.float32) for shape in array_shapes])
     callable_gen = make_callable(chunk_dir=args.dataset_path, batch_size=args.batch_size, skip_factor=args.skip_factor,

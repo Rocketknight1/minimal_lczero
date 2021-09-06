@@ -50,7 +50,8 @@ class ConvBlock(tf.keras.layers.Layer):
             axis=1,
             center=True,
             scale=bn_scale,
-            name=name + '/batchnorm')
+            name=name + '/batchnorm',
+            dtype=tf.float32)
 
     def call(self, inputs):
         out = self.conv_layer(inputs)
@@ -80,7 +81,8 @@ class ResidualBlock(tf.keras.layers.Layer):
             axis=1,
             center=True,
             scale=False,
-            name=name + '/batchnorm')
+            name=name + '/batchnorm',
+            dtype=tf.float32)
         self.conv2 = tf.keras.layers.Conv2D(channels,
                                             3,
                                             use_bias=False,

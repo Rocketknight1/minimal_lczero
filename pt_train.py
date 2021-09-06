@@ -85,8 +85,8 @@ if __name__ == '__main__':
             opt.step()
             for key, val in outputs._asdict().items():
                 if key.endswith('loss'):
-                    loss_totals[key] = float(val.detach().cpu())
+                    loss_totals[key] += float(val.detach().cpu())
             total_steps += 1
-            displayed_loss = {key.removesuffix('_loss'): val for key, val in loss_totals.items()}
+            displayed_loss = {key.removesuffix('_loss'): val / total_steps for key, val in loss_totals.items()}
             bar.set_postfix(displayed_loss)
             bar.update(1)

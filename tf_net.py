@@ -1,6 +1,7 @@
 import tensorflow as tf
 from tf_layers import ConvBlock, ResidualBlock, ConvolutionalPolicyHead, ConvolutionalValueOrMovesLeftHead
 from tf_losses import policy_loss, value_loss, moves_left_loss
+from tensorflow.keras.mixed_precision import LossScaleOptimizer
 
 
 def qmix(z, q, q_ratio):
@@ -51,8 +52,13 @@ class LeelaZeroNet(tf.keras.Model):
                     + self.value_loss_weight * v_loss
                     + self.moves_left_loss_weight * ml_loss
             )
-        trainable_vars = self.trainable_variables
-        gradients = tape.gradient(total_loss, trainable_vars)
-        self.optimizer.apply_gradients(zip(gradients, trainable_vars))
+            if tf.keras.mixed_precision.global_policy().name == 'mixed_float16':
+                scaled_loss = self.optimizer.get_scaled_loss(total_loss)
+                scaled_gradients = tape.gradient(scaled_loss, self.trainable_variables)
+                gradients = self.optimizer.get_unscaled_gradients(scaled_gradients)
+            else:
+                gradients = tape.gradient(total_loss, self.trainable_variables)
+        self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
+
         return {"policy_loss": p_loss, "value_loss": v_loss,
                 "moves_left_loss": ml_loss, "loss": total_loss}

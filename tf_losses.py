@@ -1,5 +1,6 @@
 import tensorflow as tf
 
+
 def policy_loss(target, output):
     # Illegal moves are marked by a value of -1 in the labels - we mask these with large negative values
     output = tf.where(target < 0, -1e5, output)
