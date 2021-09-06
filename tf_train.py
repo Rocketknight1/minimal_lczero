@@ -2,7 +2,7 @@ from tf_net import LeelaZeroNet
 import tensorflow as tf
 from argparse import ArgumentParser
 from pathlib import Path
-from new_data_pipeline import multiprocess_generator, ARRAY_SHAPES, make_callable
+from new_data_pipeline import ARRAY_SHAPES_WITHOUT_BATCH, make_callable
 
 if __name__ == '__main__':
     parser = ArgumentParser()
@@ -15,7 +15,10 @@ if __name__ == '__main__':
     parser.add_argument('--max_grad_norm', type=float, default=5.6)
     # These parameters control the data pipeline
     parser.add_argument('--dataset_path', type=Path, required=True)
-    # parser.add_argument('--batch_size', type=int, default=1024)
+    parser.add_argument('--batch_size', type=int, default=1024)
+    parser.add_argument('--num_workers', type=int, default=4)
+    parser.add_argument('--shuffle_buffer_size', type=int, default=2 ** 17)
+    parser.add_argument('--skip_factor', type=int, default=32)
     # These parameters control the loss calculation. They should not be changed unless you
     # know what you're doing, as the loss values you get will not be comparable with other
     # people's unless they are kept at the defaults.
@@ -35,8 +38,10 @@ if __name__ == '__main__':
                          moves_left_loss_weight=args.moves_left_loss_weight,
                          q_ratio=args.q_ratio)
     model.compile(optimizer=tf.keras.optimizers.Adam(args.learning_rate, global_clipnorm=args.max_grad_norm))
-    output_signature = tuple([tf.TensorSpec(shape=shape, dtype=tf.float32) for shape in ARRAY_SHAPES])
-    callable_gen = make_callable(args.dataset_path)
+    array_shapes = [tuple([args.batch_size] + list(shape)) for shape in ARRAY_SHAPES_WITHOUT_BATCH]
+    output_signature = tuple([tf.TensorSpec(shape=shape, dtype=tf.float32) for shape in array_shapes])
+    callable_gen = make_callable(chunk_dir=args.dataset_path, batch_size=args.batch_size, skip_factor=args.skip_factor,
+                                 num_workers=args.num_workers, shuffle_buffer_size=args.shuffle_buffer_size)
     dataset = tf.data.Dataset.from_generator(callable_gen,
                                              output_signature=output_signature).prefetch(10)
     model.fit(dataset, epochs=999, steps_per_epoch=8192)

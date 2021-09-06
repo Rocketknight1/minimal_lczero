@@ -1,7 +1,7 @@
 from pt_net import LeelaZeroNet
 from argparse import ArgumentParser
 from pathlib import Path
-from new_data_pipeline import multiprocess_generator, ARRAY_SHAPES
+from new_data_pipeline import multiprocess_generator
 import torch
 from torch import nn
 from tqdm import tqdm
@@ -11,8 +11,10 @@ from collections import Counter
 
 
 class LeelaDataset(torch.utils.data.IterableDataset):
-    def __init__(self, dataset_path):
-        self.gen = multiprocess_generator(dataset_path)
+    def __init__(self, chunk_dir, batch_size, num_workers, skip_factor, shuffle_buffer_size):
+        self.gen = multiprocess_generator(chunk_dir=chunk_dir, batch_size=batch_size,
+                                 num_workers=num_workers, skip_factor=skip_factor,
+                                 shuffle_buffer_size=shuffle_buffer_size)
 
     def __iter__(self):
         return self.gen
@@ -29,6 +31,10 @@ if __name__ == '__main__':
     parser.add_argument('--max_grad_norm', type=float, default=5.6)
     # These parameters control the data pipeline
     parser.add_argument('--dataset_path', type=Path, required=True)
+    parser.add_argument('--batch_size', type=int, default=1024)
+    parser.add_argument('--num_workers', type=int, default=4)
+    parser.add_argument('--shuffle_buffer_size', type=int, default=2 ** 17)
+    parser.add_argument('--skip_factor', type=int, default=32)
     # parser.add_argument('--batch_size', type=int, default=1024)
     # These parameters control the loss calculation. They should not be changed unless you
     # know what you're doing, as the loss values you get will not be comparable with other
@@ -59,7 +65,8 @@ if __name__ == '__main__':
         all_params = list(model.parameters())
         # opt = torch.optim.Adam(all_params, lr=args.learning_rate)
 
-        dataset = LeelaDataset(args.dataset_path)
+        dataset = LeelaDataset(chunk_dir=args.dataset_path, batch_size=args.batch_size, skip_factor=args.skip_factor,
+                               num_workers=args.num_workers, shuffle_buffer_size=args.shuffle_buffer_size)
         dataloader = torch.utils.data.DataLoader(dataset, pin_memory=True, collate_fn=lambda x: (torch.tensor(x[0][0]),
                                                                                                  torch.tensor(x[0][1]),
                                                                                                  torch.tensor(x[0][2]),

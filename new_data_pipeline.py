@@ -1,5 +1,4 @@
 import numpy as np
-import gzip
 from pathlib import Path
 from random import shuffle
 from tqdm import tqdm, trange
@@ -8,13 +7,7 @@ from multiprocessing import get_context
 from multiprocessing.shared_memory import SharedMemory
 
 RECORD_SIZE = 8356
-SKIP_FACTOR = 32
-NUM_WORKERS = 12
-BATCH_SIZE = 1024
-SHUFFLE_BUFFER_SIZE = 2 ** 19
-assert SHUFFLE_BUFFER_SIZE % BATCH_SIZE == 0  # This simplifies my life later on
-ARRAY_SHAPES = [(BATCH_SIZE, 112, 64), (BATCH_SIZE, 1858), (BATCH_SIZE, 3), (BATCH_SIZE, 3), (BATCH_SIZE, 1)]
-ARRAY_SIZES = [int(np.prod(shape)) * 4 for shape in ARRAY_SHAPES]
+ARRAY_SHAPES_WITHOUT_BATCH = [(112, 64), (1858,), (3,), (3,), (1,)]
 
 
 def file_generator(file_list):
@@ -95,12 +88,12 @@ def extract_inputs_outputs_if1(raw_list):
     return inputs, policy, z, q, ply_count
 
 
-def offset_generator(batch_size, record_size):
+def offset_generator(batch_size, record_size, skip_factor):
     initial_offset = 0
     while True:
-        retained_indices = np.random.choice(batch_size * SKIP_FACTOR, size=batch_size, replace=False)
+        retained_indices = np.random.choice(batch_size * skip_factor, size=batch_size, replace=False)
         retained_indices = np.sort(retained_indices)
-        next_offset = batch_size * SKIP_FACTOR - retained_indices[-1]  # Bump us up to the end of the current skip-batch
+        next_offset = batch_size * skip_factor - retained_indices[-1]  # Bump us up to the end of the current skip-batch
         skip_offsets = np.diff(retained_indices, prepend=0)
         skip_offsets[0] += initial_offset
         for offset in skip_offsets:
@@ -108,9 +101,9 @@ def offset_generator(batch_size, record_size):
         initial_offset = next_offset
 
 
-def data_generator(files, batch_size):
+def data_generator(files, batch_size, skip_factor):
     file_gen = file_generator(files)
-    offset_gen = offset_generator(batch_size=BATCH_SIZE, record_size=RECORD_SIZE)
+    offset_gen = offset_generator(batch_size=batch_size, record_size=RECORD_SIZE, skip_factor=skip_factor)
     data = []
     current_file = next(file_gen)
     file_ptr = 0
@@ -129,12 +122,13 @@ def data_generator(files, batch_size):
             file_ptr = 0
 
 
-def data_worker(files, batch_size, array_ready_event, main_process_access_event, shared_array_names):
+def data_worker(files, batch_size, skip_factor, array_ready_event, main_process_access_event, shared_array_names):
     shared_mem = [SharedMemory(name=name, create=False) for name in shared_array_names]
+    array_shapes = [[batch_size] + list(shape) for shape in ARRAY_SHAPES_WITHOUT_BATCH]
     shared_arrays = [np.ndarray(shape, dtype=np.float32, buffer=mem.buf)
-                     for shape, mem in zip(ARRAY_SHAPES, shared_mem)]
+                     for shape, mem in zip(array_shapes, shared_mem)]
     file_gen = file_generator(files)
-    offset_gen = offset_generator(batch_size=BATCH_SIZE, record_size=RECORD_SIZE)
+    offset_gen = offset_generator(batch_size=batch_size, record_size=RECORD_SIZE, skip_factor=skip_factor)
     data = []
     current_file = next(file_gen)
     file_ptr = 0
@@ -158,44 +152,47 @@ def data_worker(files, batch_size, array_ready_event, main_process_access_event,
             file_ptr = 0
 
 
-def multiprocess_generator(chunk_dir):
+def multiprocess_generator(chunk_dir, batch_size, num_workers, skip_factor, shuffle_buffer_size):
+    assert shuffle_buffer_size % batch_size == 0  # This simplifies my life later on
     print("Scanning directory for game data chunks...")
     files = list(tqdm(chunk_dir.glob('**/*.gz'), desc="Files found", unit=" files"))
     print("Done!")
     shuffle(files)
-    worker_file_lists = [files[i::NUM_WORKERS] for i in range(NUM_WORKERS)]
+    worker_file_lists = [files[i::num_workers] for i in range(num_workers)]
     ctx = get_context('spawn')  # For Windows compatibility
     array_ready_events = []
     main_process_access_events = []
     shared_arrays = []
     shared_mem = []
-    shuffle_buffer_shapes = [[SHUFFLE_BUFFER_SIZE] + list(shape[1:]) for shape in ARRAY_SHAPES]
+    array_shapes = [[batch_size] + list(shape) for shape in ARRAY_SHAPES_WITHOUT_BATCH]
+    array_sizes = [int(np.prod(shape)) * 4 for shape in array_shapes]
+    shuffle_buffer_shapes = [[shuffle_buffer_size] + list(shape[1:]) for shape in array_shapes]
     shuffle_buffers = [np.zeros(shape=shape, dtype=np.float32) for shape in shuffle_buffer_shapes]
 
-    for i in range(NUM_WORKERS):
+    for i in range(num_workers):
         array_ready_event = ctx.Event()
         main_process_access_event = ctx.Event()
         main_process_access_event.set()
         array_ready_events.append(array_ready_event)
         main_process_access_events.append(main_process_access_event)
-        process_shared_mem = [SharedMemory(size=size, create=True) for size in ARRAY_SIZES]
-        process_shared_arrays = [np.ndarray(ARRAY_SHAPES[i], dtype=np.float32, buffer=process_shared_mem[i].buf)
-                                 for i in range(len(ARRAY_SHAPES))]
+        process_shared_mem = [SharedMemory(size=size, create=True) for size in array_sizes]
+        process_shared_arrays = [np.ndarray(array_shapes[i], dtype=np.float32, buffer=process_shared_mem[i].buf)
+                                 for i in range(len(array_shapes))]
         shared_mem.append(process_shared_mem)
         shared_arrays.append(process_shared_arrays)
         shared_mem_names = [mem.name for mem in process_shared_mem]
         process = ctx.Process(target=data_worker, kwargs={
-            "files": worker_file_lists[i],
-            "batch_size": BATCH_SIZE, "array_ready_event": array_ready_event,
+            "files": worker_file_lists[i], "skip_factor": skip_factor,
+            "batch_size": batch_size, "array_ready_event": array_ready_event,
             "main_process_access_event": main_process_access_event,
             "shared_array_names": shared_mem_names}, daemon=True)
         process.start()
 
-    for i in trange(SHUFFLE_BUFFER_SIZE // BATCH_SIZE, desc="Filling shuffle buffer"):
-        proc = i % NUM_WORKERS
+    for i in trange(shuffle_buffer_size // batch_size, desc="Filling shuffle buffer"):
+        proc = i % num_workers
         array_ready_events[proc].wait()
         for array, shuffle_buffer in zip(shared_arrays[proc], shuffle_buffers):
-            shuffle_buffer[i * BATCH_SIZE: (i + 1) * BATCH_SIZE] = array
+            shuffle_buffer[i * batch_size: (i + 1) * batch_size] = array
         array_ready_events[proc].clear()
         main_process_access_events[proc].set()
 
@@ -203,7 +200,7 @@ def multiprocess_generator(chunk_dir):
         for array_ready_event, main_process_access_event, shared_arrs in zip(array_ready_events, main_process_access_events, shared_arrays):
             if not array_ready_event.is_set():
                 continue
-            random_indices = np.random.choice(SHUFFLE_BUFFER_SIZE, size=BATCH_SIZE, replace=False)
+            random_indices = np.random.choice(shuffle_buffer_size, size=batch_size, replace=False)
             batch = tuple([np.copy(shuffle_buffer[random_indices]) for shuffle_buffer in shuffle_buffers])
             for arr, shuffle_buffer in zip(shared_arrs, shuffle_buffers):
                 shuffle_buffer[random_indices] = arr
@@ -212,16 +209,24 @@ def multiprocess_generator(chunk_dir):
             yield batch
 
 
-def make_callable(chunk_dir):
+def make_callable(chunk_dir, batch_size, num_workers, skip_factor, shuffle_buffer_size):
     # Because tf.data needs to be able to reinitialize
     def return_gen():
-        return multiprocess_generator(chunk_dir)
+        return multiprocess_generator(chunk_dir=chunk_dir, batch_size=batch_size,
+                                      num_workers=num_workers, skip_factor=skip_factor,
+                                      shuffle_buffer_size=shuffle_buffer_size)
     return return_gen
 
 
 def main():
     test_dir = Path("/home/matt/leela_training_data/rescored/training-run1-test60-20210701-0017")
-    gen = multiprocess_generator(test_dir)
+    batch_size = 1024
+    num_workers = 4
+    shuffle_buffer_size = 2 ** 17
+    skip_factor = 32
+    gen = multiprocess_generator(chunk_dir=test_dir, batch_size=batch_size,
+                                 num_workers=num_workers, skip_factor=skip_factor,
+                                 shuffle_buffer_size=shuffle_buffer_size)
     for _ in tqdm(gen):
         pass
 
