@@ -14,6 +14,8 @@ if __name__ == '__main__':
     parser.add_argument('--learning_rate', type=float, default=3e-4)
     parser.add_argument('--max_grad_norm', type=float, default=5.6)
     parser.add_argument('--mixed_precision', action='store_true')
+    parser.add_argument('--reduce_lr_on_plateau', action='store_true')
+    parser.add_argument('--save_dir', type=Path)
     # These parameters control the data pipeline
     parser.add_argument('--dataset_path', type=Path, required=True)
     parser.add_argument('--batch_size', type=int, default=1024)
@@ -42,6 +44,13 @@ if __name__ == '__main__':
     optimizer = tf.keras.optimizers.Adam(args.learning_rate, global_clipnorm=args.max_grad_norm)
     if args.mixed_precision:
         optimizer = tf.keras.mixed_precision.LossScaleOptimizer(optimizer)
+    callbacks = []
+    if args.reduce_lr_on_plateau:
+        callbacks.append(tf.keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.1, patience=1, cooldown=10,
+                                                              min_lr=args.learning_rate / 100))
+    if args.save_dir is not None:
+        args.save_dir.mkdir(exist_ok=True, parents=True)
+        callbacks.append(tf.keras.callbacks.ModelCheckpoint(args.save_dir))
     model.compile(optimizer=optimizer)
     array_shapes = [tuple([args.batch_size] + list(shape)) for shape in ARRAY_SHAPES_WITHOUT_BATCH]
     output_signature = tuple([tf.TensorSpec(shape=shape, dtype=tf.float32) for shape in array_shapes])
@@ -49,4 +58,4 @@ if __name__ == '__main__':
                                  num_workers=args.num_workers, shuffle_buffer_size=args.shuffle_buffer_size)
     dataset = tf.data.Dataset.from_generator(callable_gen,
                                              output_signature=output_signature).prefetch(10)
-    model.fit(dataset, epochs=999, steps_per_epoch=8192)
+    model.fit(dataset, epochs=999, steps_per_epoch=8192, callbacks=callbacks)
