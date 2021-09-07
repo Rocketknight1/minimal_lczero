@@ -50,7 +50,7 @@ if __name__ == '__main__':
                                                               min_lr=args.learning_rate / 100))
     if args.save_dir is not None:
         args.save_dir.mkdir(exist_ok=True, parents=True)
-        callbacks.append(tf.keras.callbacks.ModelCheckpoint(args.save_dir))
+        callbacks.append(tf.keras.callbacks.ModelCheckpoint(args.save_dir, save_weights_only=True))
     model.compile(optimizer=optimizer)
     array_shapes = [tuple([args.batch_size] + list(shape)) for shape in ARRAY_SHAPES_WITHOUT_BATCH]
     output_signature = tuple([tf.TensorSpec(shape=shape, dtype=tf.float32) for shape in array_shapes])
