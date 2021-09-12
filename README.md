@@ -46,9 +46,13 @@ These assume the input is a flat tensor of shape (batch, hidden_dim).
 
 ### Where do I get data? How do I load it?
 
-The input pipeline is in `tf_data_pipeline.py`. You shouldn't need to modify it, but you can look around if you like!
-For smaller nets (e.g. 128 filters, 10 blocks), you may find that you are bottlenecked by the input pipeline instead
-of the GPU - if you can find any tricks to speed up the pipeline, please let me know!
+The input pipeline is in `new_data_pipeline.py`. You shouldn't need to modify it, but you can look around if you like!
+For testing and benchmarking you can also run that script alone, to get sample inputs from the pipeline without
+initializing any modules.
+
+The pipeline can manage about 50k pos/s before the shuffle buffer becomes the bottleneck - this should be enough to 
+saturate any single GPU even for a very small network. It might become a bottleneck if you want to train a very fast
+GPU fleet with a very small net, but that sounds like a weird thing to do.
 
 As for data, I'm working on building a standard dataset for benchmarking, which I'll probably host as a torrent. It's not 
 here yet, unfortunately!
