@@ -21,7 +21,7 @@ class SqueezeExcitation(tf.keras.layers.Layer):
         self.excite = self.add_weight(name=self.name_str + '/excite', shape=(squeeze_dim, excite_dim),
                                       initializer='glorot_normal', trainable=True)
 
-    def call(self, inputs):
+    def call(self, inputs, training=None, mask=None):
         pooled = self.pooler(inputs)
         squeezed = tf.nn.relu(pooled @ self.squeeze)
         excited = squeezed @ self.excite
@@ -53,7 +53,7 @@ class ConvBlock(tf.keras.layers.Layer):
             name=name + '/batchnorm',
             dtype=tf.float32)
 
-    def call(self, inputs):
+    def call(self, inputs, training=None, mask=None):
         out = self.conv_layer(inputs)
         out = self.batchnorm(out)
         return tf.keras.activations.relu(out)
@@ -93,7 +93,7 @@ class ResidualBlock(tf.keras.layers.Layer):
                                             name=name + '/2/conv2d')
         self.squeeze_excite = SqueezeExcitation(se_ratio, name=name + '/se')
 
-    def call(self, inputs):
+    def call(self, inputs, training=None, mask=None):
         out1 = self.conv1(inputs)
         out1 = tf.nn.relu(self.batch_norm(out1))
         out2 = self.conv2(out1)
@@ -117,7 +117,7 @@ class ConvolutionalPolicyHead(tf.keras.layers.Layer):
             name='policy')
         self.fc1 = tf.constant(lc0_az_policy_map.make_map())
 
-    def call(self, inputs):
+    def call(self, inputs, training=None, mask=None):
         flow = self.conv_block(inputs)
         flow = self.conv(flow)
         h_conv_pol_flat = tf.reshape(flow, [-1, 80 * 8 * 8])
@@ -135,7 +135,7 @@ class DensePolicyHead(tf.keras.layers.Layer):
                                               kernel_initializer='glorot_normal',
                                               name='policy/dense')
 
-    def call(self, inputs):
+    def call(self, inputs, training=None, mask=None):
         if tf.rank(inputs) > 2:
             # Flatten input before proceeding
             inputs = tf.reshape(inputs, (tf.shape(inputs)[0], -1))
@@ -158,7 +158,7 @@ class ConvolutionalValueOrMovesLeftHead(tf.keras.layers.Layer):
         self.fc_out = tf.keras.layers.Dense(output_dim, use_bias=True, activation='relu' if relu else None,
                                             kernel_initializer='glorot_normal', name='value/dense2')
 
-    def call(self, inputs):
+    def call(self, inputs, training=None, mask=None):
         flow = self.conv_block(inputs)
         flow = tf.reshape(flow, [-1, self.num_filters * 8 * 8])
         flow = self.fc1(flow)
@@ -175,7 +175,7 @@ class DenseValueOrMovesLeftHead(tf.keras.layers.Layer):
                                             name='value/dense',
                                             activation='relu' if relu else None)
 
-    def call(self, inputs):
+    def call(self, inputs, training=None, mask=None):
         if tf.rank(inputs) > 2:
             # Flatten input before proceeding
             inputs = tf.reshape(inputs, (tf.shape(inputs)[0], -1))

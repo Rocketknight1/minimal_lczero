@@ -29,7 +29,7 @@ class LeelaZeroNet(tf.keras.Model):
         self.moves_left_loss_weight = moves_left_loss_weight
         self.q_ratio = q_ratio
 
-    def call(self, inputs):
+    def call(self, inputs, training=None, mask=None):
         flow = self.input_reshape(inputs)
         flow = self.input_block(flow)
         for residual_block in self.residual_blocks:
