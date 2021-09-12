@@ -2,7 +2,7 @@ from pt_layers import ConvBlock, ResidualBlock, ConvolutionalPolicyHead, Convolu
 from pt_losses import policy_loss, value_loss, moves_left_loss
 import torch
 from torch import nn
-from torch.nn import functional as F
+from collections import OrderedDict
 from typing import Optional, NamedTuple
 
 
@@ -16,17 +16,14 @@ class ModelOutput(NamedTuple):
     loss: Optional[torch.Tensor]
 
 
-def qmix(z: torch.Tensor, q: torch.Tensor, q_ratio: float) -> torch.Tensor:
-    return q * q_ratio + z * (1 - q_ratio)
-
-
 class LeelaZeroNet(nn.Module):
     def __init__(self, num_filters, num_residual_blocks, se_ratio, policy_loss_weight,
                  value_loss_weight, moves_left_loss_weight, q_ratio):
         super().__init__()
         self.input_block = ConvBlock(input_channels=112, filter_size=3, output_channels=num_filters)
-        self.residual_blocks = nn.Sequential(*[ResidualBlock(channels=num_filters, se_ratio=se_ratio)
-                                               for _ in range(num_residual_blocks)])
+        residual_blocks = OrderedDict([(f"residual_block_{i}", ResidualBlock(num_filters, se_ratio))
+                                       for i in range(num_residual_blocks)])
+        self.residual_blocks = nn.Sequential(residual_blocks)
         self.policy_head = ConvolutionalPolicyHead(num_filters=num_filters)
         # The value head has 3 dimensions for estimating the likelihood of win/draw/loss (WDL)
         self.value_head = ConvolutionalValueOrMovesLeftHead(input_dim=num_filters, output_dim=3,
@@ -52,7 +49,7 @@ class LeelaZeroNet(nn.Module):
             # If no labels, just return the outputs
             return ModelOutput(policy_out, value_out, moves_left_out, None, None, None, None)
         # If we've been given a dict, assume it has labels
-        value_target = qmix(wdl_target, q_target, self.q_ratio)
+        value_target = q_target * self.q_ratio + wdl_target * (1 - self.q_ratio)
         p_loss = policy_loss(policy_target, policy_out)
         v_loss = value_loss(value_target, value_out)
         ml_loss = moves_left_loss(moves_left_target, moves_left_out)

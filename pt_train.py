@@ -7,9 +7,6 @@ from torch import nn
 from tqdm import tqdm
 from collections import Counter
 
-# TODO Test layers with equivalent weights to make sure we can match the TF net's outputs
-
-
 class LeelaDataset(torch.utils.data.IterableDataset):
     def __init__(self, chunk_dir, batch_size, num_workers, skip_factor, shuffle_buffer_size):
         self.gen = multiprocess_generator(chunk_dir=chunk_dir, batch_size=batch_size,
@@ -35,7 +32,6 @@ if __name__ == '__main__':
     parser.add_argument('--num_workers', type=int, default=4)
     parser.add_argument('--shuffle_buffer_size', type=int, default=2 ** 17)
     parser.add_argument('--skip_factor', type=int, default=32)
-    # parser.add_argument('--batch_size', type=int, default=1024)
     # These parameters control the loss calculation. They should not be changed unless you
     # know what you're doing, as the loss values you get will not be comparable with other
     # people's unless they are kept at the defaults.
@@ -53,6 +49,7 @@ if __name__ == '__main__':
                              moves_left_loss_weight=args.moves_left_loss_weight,
                              q_ratio=args.q_ratio)
         model = model.cuda()
+        # model = torch.jit.script(model)
         weight_decay_params = []
         non_weight_decay_params = []
         for param in model.named_parameters():
@@ -76,8 +73,8 @@ if __name__ == '__main__':
     loss_totals = Counter()
     total_steps = 0
     with tqdm(total=8192) as bar:
-        model.zero_grad()
         for batch in dataloader:
+            model.zero_grad()
             batch = [tensor.cuda() for tensor in batch]
             outputs = model(*batch)
             outputs.loss.backward()
