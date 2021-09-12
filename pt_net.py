@@ -39,7 +39,7 @@ class LeelaZeroNet(nn.Module):
     def forward(self, input_planes: torch.Tensor, policy_target: torch.Tensor,
                 wdl_target: torch.Tensor, q_target: torch.Tensor,
                 moves_left_target: torch.Tensor) -> ModelOutput:
-        flow = input_planes.view(-1, 112, 8, 8)
+        flow = input_planes.reshape(-1, 112, 8, 8)
         flow = self.input_block(flow)
         flow = self.residual_blocks(flow)
         policy_out = self.policy_head(flow)

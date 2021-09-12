@@ -10,10 +10,11 @@ from queue import Queue
 from threading import Thread
 from time import sleep
 
+torch.backends.cudnn.benchmark = True
 
 class LeelaPrefetchBuffer:
     def __init__(self, chunk_dir, batch_size, num_workers, skip_factor, shuffle_buffer_size):
-        self.queue = Queue(maxsize=32)
+        self.queue = Queue(maxsize=8)
 
         def data_prefetcher(queue):
             gen = multiprocess_generator(chunk_dir=chunk_dir, batch_size=batch_size,
@@ -75,29 +76,29 @@ def main():
                 non_weight_decay_params.append(param[1])
         opt = torch.optim.AdamW(non_weight_decay_params, lr=args.learning_rate, weight_decay=0.)
         opt.add_param_group({'params': weight_decay_params, "weight_decay": args.l2_reg})
-        all_params = list(model.parameters())
 
+    prefetcher = LeelaPrefetchBuffer(chunk_dir=args.dataset_path, batch_size=args.batch_size,
+                                     skip_factor=args.skip_factor, num_workers=args.num_workers,
+                                     shuffle_buffer_size=args.shuffle_buffer_size)
+
+    while True:
         loss_totals = Counter()
         total_steps = 0
-        prefetcher = LeelaPrefetchBuffer(chunk_dir=args.dataset_path, batch_size=args.batch_size,
-                                         skip_factor=args.skip_factor, num_workers=args.num_workers,
-                                         shuffle_buffer_size=args.shuffle_buffer_size)
-
-    with tqdm(total=8192) as bar:
-        for batch in prefetcher:
-            model.zero_grad()
-            batch = [tensor.cuda() for tensor in batch]
-            outputs = model(*batch)
-            outputs.loss.backward()
-            nn.utils.clip_grad_norm_(all_params, max_norm=args.max_grad_norm)
-            opt.step()
-            for key, val in outputs._asdict().items():
-                if key.endswith('loss'):
-                    loss_totals[key] += float(val.detach().cpu())
-            total_steps += 1
-            displayed_loss = {key.removesuffix('_loss'): val / total_steps for key, val in loss_totals.items()}
-            bar.set_postfix(displayed_loss)
-            bar.update(1)
+        with tqdm(total=8192) as bar:
+            for batch in prefetcher:
+                opt.zero_grad(set_to_none=True)
+                batch = [tensor.cuda() for tensor in batch]
+                outputs = model(*batch)
+                outputs.loss.backward()
+                nn.utils.clip_grad_norm_(model.parameters(), max_norm=args.max_grad_norm)
+                opt.step()
+                for key, val in outputs._asdict().items():
+                    if key.endswith('loss'):
+                        loss_totals[key] += float(val.detach().cpu())
+                total_steps += 1
+                displayed_loss = {key.removesuffix('_loss'): val / total_steps for key, val in loss_totals.items()}
+                bar.set_postfix(displayed_loss)
+                bar.update(1)
 
 
 if __name__ == '__main__':
