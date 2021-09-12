@@ -55,7 +55,7 @@ def extract_outputs(raw):
     z_q_w = 0.5 * (1.0 - z_d + z_q)
     z_q_l = 0.5 * (1.0 - z_d - z_q)
 
-    z = np.concatenate([z_q_w, z_d, z_q_l], axis=1)
+    z = np.concatenate((z_q_w, z_d, z_q_l), axis=1)
 
     # Outcome distribution needs to be calculated from q and d.
     best_q = np.ascontiguousarray(raw[:, 8284: 8284 + 4]).view(dtype=np.float32)
@@ -63,17 +63,15 @@ def extract_outputs(raw):
     best_q_w = 0.5 * (1.0 - best_d + best_q)
     best_q_l = 0.5 * (1.0 - best_d - best_q)
 
-    q = np.concatenate([best_q_w, best_d, best_q_l], axis=1)
+    q = np.concatenate((best_q_w, best_d, best_q_l), axis=1)
 
     ply_count = np.ascontiguousarray(raw[:, 8304: 8304 + 4]).view(dtype=np.float32)
     return z, q, ply_count
 
 
-def extract_inputs_outputs_if1(raw_list):
+def extract_inputs_outputs_if1(raw):
     # first 4 bytes in each batch entry are boring.
     # Next 4 change how we construct some of the unit planes.
-    raw = np.stack([np.frombuffer(arr, dtype=np.uint8) for arr in raw_list], axis=0)
-
     policy, bit_planes = extract_policy_bits(raw)
 
     # Next 5 are castling + stm, all of which simply copy the byte value to all squares.
@@ -102,18 +100,23 @@ def offset_generator(batch_size, record_size, skip_factor):
 
 
 def data_generator(files, batch_size, skip_factor):
+    # This is a singlethreaded generator for debugging
     file_gen = file_generator(files)
     offset_gen = offset_generator(batch_size=batch_size, record_size=RECORD_SIZE, skip_factor=skip_factor)
-    data = []
+    data = np.zeros((batch_size, RECORD_SIZE), dtype=np.uint8)
     current_file = next(file_gen)
     file_ptr = 0
+    data_ptr = 0
     offset = next(offset_gen)
     while True:
         if offset + file_ptr < len(current_file):
-            data.append(current_file[offset + file_ptr: offset + file_ptr + RECORD_SIZE])
-            if len(data) == batch_size:
+            data[data_ptr] = np.frombuffer(current_file[offset + file_ptr: offset + file_ptr + RECORD_SIZE],
+                                           dtype=np.uint8)
+            data_ptr += 1
+            if data_ptr == batch_size:
                 yield extract_inputs_outputs_if1(data)
-                data = []
+                data.fill(0)
+                data_ptr = 0
             file_ptr += offset + RECORD_SIZE
             offset = next(offset_gen)
         else:
@@ -129,21 +132,25 @@ def data_worker(files, batch_size, skip_factor, array_ready_event, main_process_
                      for shape, mem in zip(array_shapes, shared_mem)]
     file_gen = file_generator(files)
     offset_gen = offset_generator(batch_size=batch_size, record_size=RECORD_SIZE, skip_factor=skip_factor)
-    data = []
+    data = np.zeros((batch_size, RECORD_SIZE), dtype=np.uint8)
     current_file = next(file_gen)
     file_ptr = 0
+    data_ptr = 0
     offset = next(offset_gen)
     while True:
         if offset + file_ptr < len(current_file):
-            data.append(current_file[offset + file_ptr: offset + file_ptr + RECORD_SIZE])
-            if len(data) == batch_size:
+            data[data_ptr] = np.frombuffer(current_file[offset + file_ptr: offset + file_ptr + RECORD_SIZE],
+                                           dtype=np.uint8)
+            data_ptr += 1
+            if data_ptr == batch_size:
                 processed_batch = extract_inputs_outputs_if1(data)
                 main_process_access_event.wait()
                 main_process_access_event.clear()
                 for batch_array, shared_array in zip(processed_batch, shared_arrays):
                     shared_array[:] = batch_array
                     array_ready_event.set()
-                data = []
+                data.fill(0)
+                data_ptr = 0
             file_ptr += offset + RECORD_SIZE
             offset = next(offset_gen)
         else:
@@ -201,12 +208,13 @@ def multiprocess_generator(chunk_dir, batch_size, num_workers, skip_factor, shuf
             if not array_ready_event.is_set():
                 continue
             random_indices = np.random.choice(shuffle_buffer_size, size=batch_size, replace=False)
-            batch = tuple([np.copy(shuffle_buffer[random_indices]) for shuffle_buffer in shuffle_buffers])
+            batch = tuple([shuffle_buffer[random_indices] for shuffle_buffer in shuffle_buffers])
+            yield batch
             for arr, shuffle_buffer in zip(shared_arrs, shuffle_buffers):
                 shuffle_buffer[random_indices] = arr
             array_ready_event.clear()
             main_process_access_event.set()
-            yield batch
+
 
 
 def make_callable(chunk_dir, batch_size, num_workers, skip_factor, shuffle_buffer_size):
