@@ -176,7 +176,7 @@ def multiprocess_generator(chunk_dir, batch_size, num_workers, skip_factor, shuf
     shuffle_buffer_shapes = [[shuffle_buffer_size] + list(shape[1:]) for shape in array_shapes]
     shuffle_buffers = [np.zeros(shape=shape, dtype=np.float32) for shape in shuffle_buffer_shapes]
 
-    for i in range(num_workers):
+    for i in trange(num_workers, desc="Initializing worker processes"):
         array_ready_event = ctx.Event()
         main_process_access_event = ctx.Event()
         main_process_access_event.set()
