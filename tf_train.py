@@ -4,6 +4,14 @@ from argparse import ArgumentParser
 from pathlib import Path
 from new_data_pipeline import ARRAY_SHAPES_WITHOUT_BATCH, make_callable
 
+
+def get_schedule_function(starting_lr, reduce_lr_every_n_epochs, reduce_lr_factor, min_learning_rate):
+    def scheduler(epoch, lr):
+        num_reductions = int(epoch // reduce_lr_every_n_epochs)
+        reduction_factor = reduce_lr_factor ** num_reductions
+        return max(min_learning_rate, starting_lr / reduction_factor)
+    return scheduler
+
 if __name__ == '__main__':
     parser = ArgumentParser()
     # These parameters control the net and the training process
@@ -14,7 +22,9 @@ if __name__ == '__main__':
     parser.add_argument('--learning_rate', type=float, default=3e-4)
     parser.add_argument('--max_grad_norm', type=float, default=5.6)
     parser.add_argument('--mixed_precision', action='store_true')
-    parser.add_argument('--reduce_lr_on_plateau', action='store_true')
+    parser.add_argument('--reduce_lr_every_n_epochs', type=int)
+    parser.add_argument('--reduce_lr_factor', type=int, default=3)
+    parser.add_argument('--min_learning_rate', type=float, default=5e-6)
     parser.add_argument('--save_dir', type=Path)
     # These parameters control the data pipeline
     parser.add_argument('--dataset_path', type=Path, required=True)
@@ -45,12 +55,16 @@ if __name__ == '__main__':
     if args.mixed_precision:
         optimizer = tf.keras.mixed_precision.LossScaleOptimizer(optimizer)
     callbacks = []
-    if args.reduce_lr_on_plateau:
-        callbacks.append(tf.keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.1, patience=1, cooldown=10,
-                                                              min_lr=args.learning_rate / 100))
+    if args.reduce_lr_every_n_epochs is not None:
+        scheduler = get_schedule_function(args.learning_rate, args.reduce_lr_every_n_epochs,
+                                          args.reduce_lr_factor, args.min_learning_rate)
+        callbacks.append(tf.keras.callbacks.LearningRateScheduler(scheduler, verbose=1))
     if args.save_dir is not None:
         args.save_dir.mkdir(exist_ok=True, parents=True)
-        callbacks.append(tf.keras.callbacks.ModelCheckpoint(args.save_dir, save_weights_only=True))
+        checkpoint_path = args.save_dir / 'checkpoint'
+        if checkpoint_path.is_file():
+            model.load_weights(checkpoint_path)
+        callbacks.append(tf.keras.callbacks.ModelCheckpoint(checkpoint_path, save_weights_only=True))
     model.compile(optimizer=optimizer)
     array_shapes = [tuple([args.batch_size] + list(shape)) for shape in ARRAY_SHAPES_WITHOUT_BATCH]
     output_signature = tuple([tf.TensorSpec(shape=shape, dtype=tf.float32) for shape in array_shapes])
