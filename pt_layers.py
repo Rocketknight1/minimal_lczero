@@ -49,7 +49,7 @@ class ResidualBlock(nn.Module):
                                             bias=False,
                                             padding='same',
                             )
-        self.batch_norm = nn.BatchNorm2d(channels)
+        self.batch_norm = nn.BatchNorm2d(channels, affine=False)
         self.conv2 = nn.Conv2d(channels, channels,
                                             3,
                                             bias=False,

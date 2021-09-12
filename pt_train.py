@@ -6,18 +6,34 @@ import torch
 from torch import nn
 from tqdm import tqdm
 from collections import Counter
+from queue import Queue
+from threading import Thread
+from time import sleep
 
-class LeelaDataset(torch.utils.data.IterableDataset):
+
+class LeelaPrefetchBuffer:
     def __init__(self, chunk_dir, batch_size, num_workers, skip_factor, shuffle_buffer_size):
-        self.gen = multiprocess_generator(chunk_dir=chunk_dir, batch_size=batch_size,
-                                 num_workers=num_workers, skip_factor=skip_factor,
-                                 shuffle_buffer_size=shuffle_buffer_size)
+        self.queue = Queue(maxsize=32)
+
+        def data_prefetcher(queue):
+            gen = multiprocess_generator(chunk_dir=chunk_dir, batch_size=batch_size,
+                                         num_workers=num_workers, skip_factor=skip_factor,
+                                         shuffle_buffer_size=shuffle_buffer_size)
+            for batch in gen:
+                output = [torch.tensor(array, requires_grad=False).pin_memory() for array in batch]
+                queue.put(output)
+
+        self.prefetcher = Thread(target=data_prefetcher, args=(self.queue,), daemon=True)
+        self.prefetcher.start()
+        while self.queue.empty():
+            sleep(1)  # Wait for the data generator to start returning data before continuing
 
     def __iter__(self):
-        return self.gen
+        while True:
+            yield self.queue.get()
 
 
-if __name__ == '__main__':
+def main():
     parser = ArgumentParser()
     # These parameters control the net and the training process
     parser.add_argument('--num_filters', type=int, default=128)
@@ -48,8 +64,8 @@ if __name__ == '__main__':
                              value_loss_weight=args.value_loss_weight,
                              moves_left_loss_weight=args.moves_left_loss_weight,
                              q_ratio=args.q_ratio)
-        model = model.cuda()
-        # model = torch.jit.script(model)
+        model = torch.jit.script(model)
+        model = model.cuda().train()
         weight_decay_params = []
         non_weight_decay_params = []
         for param in model.named_parameters():
@@ -60,20 +76,15 @@ if __name__ == '__main__':
         opt = torch.optim.AdamW(non_weight_decay_params, lr=args.learning_rate, weight_decay=0.)
         opt.add_param_group({'params': weight_decay_params, "weight_decay": args.l2_reg})
         all_params = list(model.parameters())
-        # opt = torch.optim.Adam(all_params, lr=args.learning_rate)
 
-        dataset = LeelaDataset(chunk_dir=args.dataset_path, batch_size=args.batch_size, skip_factor=args.skip_factor,
-                               num_workers=args.num_workers, shuffle_buffer_size=args.shuffle_buffer_size)
-        dataloader = torch.utils.data.DataLoader(dataset, pin_memory=True, collate_fn=lambda x: (torch.tensor(x[0][0]),
-                                                                                                 torch.tensor(x[0][1]),
-                                                                                                 torch.tensor(x[0][2]),
-                                                                                                 torch.tensor(x[0][3]),
-                                                                                                 torch.tensor(x[0][4])))
+        loss_totals = Counter()
+        total_steps = 0
+        prefetcher = LeelaPrefetchBuffer(chunk_dir=args.dataset_path, batch_size=args.batch_size,
+                                         skip_factor=args.skip_factor, num_workers=args.num_workers,
+                                         shuffle_buffer_size=args.shuffle_buffer_size)
 
-    loss_totals = Counter()
-    total_steps = 0
     with tqdm(total=8192) as bar:
-        for batch in dataloader:
+        for batch in prefetcher:
             model.zero_grad()
             batch = [tensor.cuda() for tensor in batch]
             outputs = model(*batch)
@@ -87,3 +98,7 @@ if __name__ == '__main__':
             displayed_loss = {key.removesuffix('_loss'): val / total_steps for key, val in loss_totals.items()}
             bar.set_postfix(displayed_loss)
             bar.update(1)
+
+
+if __name__ == '__main__':
+    main()

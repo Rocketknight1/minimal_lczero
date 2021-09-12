@@ -36,19 +36,15 @@ class LeelaZeroNet(nn.Module):
         self.moves_left_loss_weight = moves_left_loss_weight
         self.q_ratio = q_ratio
 
-    def forward(self, input_planes: torch.Tensor, policy_target: Optional[torch.Tensor] = None,
-                wdl_target: Optional[torch.Tensor] = None, q_target: Optional[torch.Tensor] = None,
-                moves_left_target: Optional[torch.Tensor] = None) -> ModelOutput:
+    def forward(self, input_planes: torch.Tensor, policy_target: torch.Tensor,
+                wdl_target: torch.Tensor, q_target: torch.Tensor,
+                moves_left_target: torch.Tensor) -> ModelOutput:
         flow = input_planes.view(-1, 112, 8, 8)
         flow = self.input_block(flow)
         flow = self.residual_blocks(flow)
         policy_out = self.policy_head(flow)
         value_out = self.value_head(flow)
         moves_left_out = self.moves_left_head(flow)
-        if policy_target is None:
-            # If no labels, just return the outputs
-            return ModelOutput(policy_out, value_out, moves_left_out, None, None, None, None)
-        # If we've been given a dict, assume it has labels
         value_target = q_target * self.q_ratio + wdl_target * (1 - self.q_ratio)
         p_loss = policy_loss(policy_target, policy_out)
         v_loss = value_loss(value_target, value_out)
