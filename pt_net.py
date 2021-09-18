@@ -4,7 +4,7 @@ import torch
 from torch import nn
 from collections import OrderedDict
 from typing import Optional, NamedTuple
-
+from torch.cuda.amp import autocast
 
 class ModelOutput(NamedTuple):
     policy: torch.Tensor

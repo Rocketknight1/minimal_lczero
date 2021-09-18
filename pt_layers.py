@@ -2,6 +2,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 import lc0_az_policy_map
+from torch.cuda.amp import autocast
 
 
 class SqueezeExcitation(nn.Module):
@@ -11,10 +12,10 @@ class SqueezeExcitation(nn.Module):
         self.se_ratio = se_ratio
         self.pooler = nn.AdaptiveAvgPool2d(1)
         self.squeeze = nn.Sequential(
-            nn.Linear(channels, channels // se_ratio, bias=False),
+            nn.Linear(channels, int(channels // se_ratio), bias=False),
             nn.ReLU()
         )
-        self.expand = nn.Linear(channels // se_ratio, channels * 2, bias=False)
+        self.expand = nn.Linear(int(channels // se_ratio), channels * 2, bias=False)
         self.channels = channels
         nn.init.xavier_normal_(self.squeeze[0].weight)
         nn.init.xavier_normal_(self.expand.weight)
@@ -37,7 +38,7 @@ class ConvBlock(nn.Module):
 
     def forward(self, inputs):
         out = self.conv_layer(inputs)
-        out = self.batchnorm(out)
+        out = self.batchnorm(out.float())
         return F.relu(out)
 
 
@@ -61,7 +62,7 @@ class ResidualBlock(nn.Module):
 
     def forward(self, inputs):
         out1 = self.conv1(inputs)
-        out1 = F.relu(self.batch_norm(out1))
+        out1 = F.relu(self.batch_norm(out1.float()))
         out2 = self.conv2(out1)
         out2 = self.squeeze_excite(out2)
         return F.relu(inputs + out2)

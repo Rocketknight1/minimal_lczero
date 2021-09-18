@@ -7,7 +7,7 @@ def policy_loss(target: torch.Tensor, output: torch.Tensor):
     # Illegal moves are marked by a value of -1 in the labels - we mask these with large negative values
     output.masked_fill_(target < 0, -1e4)
     # The large negative values will still break the loss, so we replace them with 0 once we finish masking
-    target = F.relu(target, inplace=True)
+    target = F.relu(target)
     log_prob = F.log_softmax(output, dim=1)
     nll = -(target * log_prob).sum() / output.shape[0]
     return nll

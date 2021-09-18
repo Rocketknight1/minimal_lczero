@@ -9,6 +9,7 @@ from collections import Counter
 from queue import Queue
 from threading import Thread
 from time import sleep
+from torch.cuda.amp import autocast, GradScaler
 
 torch.backends.cudnn.benchmark = True
 
@@ -43,6 +44,7 @@ def main():
     parser.add_argument('--l2_reg', type=float, default=0.0005)
     parser.add_argument('--learning_rate', type=float, default=3e-4)
     parser.add_argument('--max_grad_norm', type=float, default=5.6)
+    parser.add_argument('--mixed_precision', action='store_true')
     # These parameters control the data pipeline
     parser.add_argument('--dataset_path', type=Path, required=True)
     parser.add_argument('--batch_size', type=int, default=1024)
@@ -65,7 +67,7 @@ def main():
                              value_loss_weight=args.value_loss_weight,
                              moves_left_loss_weight=args.moves_left_loss_weight,
                              q_ratio=args.q_ratio)
-        model = torch.jit.script(model)
+        # model = torch.jit.script(model)
         model = model.cuda().train()
         weight_decay_params = []
         non_weight_decay_params = []
@@ -81,17 +83,33 @@ def main():
                                      skip_factor=args.skip_factor, num_workers=args.num_workers,
                                      shuffle_buffer_size=args.shuffle_buffer_size)
 
-    while True:
+    if args.mixed_precision:
+        scaler = GradScaler()
+    else:
+        scaler = None
+
+    for epoch in range(1, 999):
+        prefetch_iterator = iter(prefetcher)
         loss_totals = Counter()
         total_steps = 0
-        with tqdm(total=8192) as bar:
-            for batch in prefetcher:
+        with tqdm(total=8192, desc=f"Epoch {epoch}", dynamic_ncols=True) as bar:
+            for i in range(8192):
+                batch = next(prefetch_iterator)
+                batch = [tensor.cuda(non_blocking=True) for tensor in batch]
                 opt.zero_grad(set_to_none=True)
-                batch = [tensor.cuda() for tensor in batch]
-                outputs = model(*batch)
-                outputs.loss.backward()
-                nn.utils.clip_grad_norm_(model.parameters(), max_norm=args.max_grad_norm)
-                opt.step()
+                if args.mixed_precision:
+                    with autocast():
+                        outputs = model(*batch)
+                    scaler.scale(outputs.loss).backward()
+                    scaler.unscale_(opt)
+                    nn.utils.clip_grad_norm_(model.parameters(), max_norm=args.max_grad_norm, error_if_nonfinite=False)
+                    scaler.step(opt)
+                    scaler.update()
+                else:
+                    outputs = model(*batch)
+                    outputs.loss.backward()
+                    nn.utils.clip_grad_norm_(model.parameters(), max_norm=args.max_grad_norm, error_if_nonfinite=True)
+                    opt.step()
                 for key, val in outputs._asdict().items():
                     if key.endswith('loss'):
                         loss_totals[key] += float(val.detach().cpu())
@@ -99,6 +117,10 @@ def main():
                 displayed_loss = {key.removesuffix('_loss'): val / total_steps for key, val in loss_totals.items()}
                 bar.set_postfix(displayed_loss)
                 bar.update(1)
+        torch.save({"epoch": epoch,
+                    "model_state_dict": model.state_dict(),
+                    "optimizer_state_dict": opt.state_dict(),
+                    }, )
 
 
 if __name__ == '__main__':

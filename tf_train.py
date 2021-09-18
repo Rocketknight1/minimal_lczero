@@ -4,7 +4,6 @@ from argparse import ArgumentParser
 from pathlib import Path
 from new_data_pipeline import ARRAY_SHAPES_WITHOUT_BATCH, make_callable
 
-
 def get_schedule_function(starting_lr, reduce_lr_every_n_epochs, reduce_lr_factor, min_learning_rate):
     def scheduler(epoch, lr):
         num_reductions = int(epoch // reduce_lr_every_n_epochs)
