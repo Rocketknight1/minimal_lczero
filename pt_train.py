@@ -1,4 +1,4 @@
-from pt_net import LeelaZeroNet
+from pt_net import LeelaZeroNet, StupidMLPNet
 from argparse import ArgumentParser
 from pathlib import Path
 from new_data_pipeline import multiprocess_generator
@@ -120,7 +120,7 @@ def main():
         torch.save({"epoch": epoch,
                     "model_state_dict": model.state_dict(),
                     "optimizer_state_dict": opt.state_dict(),
-                    }, )
+                    })
 
 
 if __name__ == '__main__':

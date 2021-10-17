@@ -1,10 +1,10 @@
-from pt_layers import ConvBlock, ResidualBlock, ConvolutionalPolicyHead, ConvolutionalValueOrMovesLeftHead
+from pt_layers import ConvBlock, ResidualBlock, ConvolutionalPolicyHead, ConvolutionalValueOrMovesLeftHead, DensePolicyHead, DenseValueOrMovesLeftHead
 from pt_losses import policy_loss, value_loss, moves_left_loss
 import torch
 from torch import nn
 from collections import OrderedDict
 from typing import Optional, NamedTuple
-from torch.cuda.amp import autocast
+
 
 class ModelOutput(NamedTuple):
     policy: torch.Tensor
