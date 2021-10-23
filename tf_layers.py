@@ -181,3 +181,34 @@ class DenseValueOrMovesLeftHead(tf.keras.layers.Layer):
             inputs = tf.reshape(inputs, (tf.shape(inputs)[0], -1))
         flow = self.fc1(inputs)
         return self.fc_out(flow)
+
+
+class CoatnetSelfAttention(tf.keras.layers.Layer):
+    # TODO Not done yet!
+    #      Among other things, missing the self-attention logit scale!
+    def __init__(self, dim):
+        self.layernorm = tf.keras.layers.LayerNormalization()
+        self.qkv_weights = self.add_weight(name="qkv_weights", shape=(dim, dim*3),
+                                           initializer='glorot_normal', trainable=True)
+        self.relative_attention_bias = self.add_weight(name="relative_attention_bias", shape=(15 * 15,),
+                                                       initializer="glorot_normal", trainable=True)
+        width_offsets = tf.expand_dims(tf.range(8), 0) - tf.expand_dims(tf.range(8), 1)
+        width_offsets += 7
+        height_offsets = tf.transpose(width_offsets)
+        self.relative_attention_indices = width_offsets + (15 * height_offsets)
+        breakpoint()  # Double-check those indices
+        print()
+
+    def call(self, inputs):
+
+        normalized_input = self.layernorm(inputs)
+        qkv = normalized_input @ self.qkv_weights
+        query, key, value = tf.split(qkv, 3, axis=-1)
+        self_attention_logits = tf.einsum("bi, bj -> bij", query, key)
+        relative_attention_bias = tf.gather(self.relative_attention_bias, self.relative_attention_indices)
+        self_attention_logits += relative_attention_bias
+        self_attention_weights = tf.nn.softmax(self_attention_logits)
+        breakpoint()
+        print()  # Double-check weights shape here
+        self_attention_output = value @ self_attention_weights
+        return inputs + self_attention_output

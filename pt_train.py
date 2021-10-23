@@ -1,4 +1,4 @@
-from pt_net import LeelaZeroNet, StupidMLPNet
+from pt_net import LeelaZeroNet
 from argparse import ArgumentParser
 from pathlib import Path
 from new_data_pipeline import multiprocess_generator
@@ -51,6 +51,7 @@ def main():
     parser.add_argument('--num_workers', type=int, default=4)
     parser.add_argument('--shuffle_buffer_size', type=int, default=2 ** 17)
     parser.add_argument('--skip_factor', type=int, default=32)
+    parser.add_argument('--save_dir', type=Path)
     # These parameters control the loss calculation. They should not be changed unless you
     # know what you're doing, as the loss values you get will not be comparable with other
     # people's unless they are kept at the defaults.
@@ -79,6 +80,14 @@ def main():
         opt = torch.optim.AdamW(non_weight_decay_params, lr=args.learning_rate, weight_decay=0.)
         opt.add_param_group({'params': weight_decay_params, "weight_decay": args.l2_reg})
 
+        if args.save_dir is not None and (args.save_dir / "model.pt").is_file():
+            saved_data = torch.load(args.save_dir / "model.pt")
+            model.load_state_dict(saved_data["model_state_dict"])
+            opt.load_state_dict(saved_data["optimizer_state_dict"])
+            start_epoch = saved_data["epoch"]
+        else:
+            start_epoch = 0
+
     prefetcher = LeelaPrefetchBuffer(chunk_dir=args.dataset_path, batch_size=args.batch_size,
                                      skip_factor=args.skip_factor, num_workers=args.num_workers,
                                      shuffle_buffer_size=args.shuffle_buffer_size)
@@ -88,7 +97,7 @@ def main():
     else:
         scaler = None
 
-    for epoch in range(1, 999):
+    for epoch in range(start_epoch + 1, 999):
         prefetch_iterator = iter(prefetcher)
         loss_totals = Counter()
         total_steps = 0
@@ -117,10 +126,12 @@ def main():
                 displayed_loss = {key.removesuffix('_loss'): val / total_steps for key, val in loss_totals.items()}
                 bar.set_postfix(displayed_loss)
                 bar.update(1)
-        torch.save({"epoch": epoch,
-                    "model_state_dict": model.state_dict(),
-                    "optimizer_state_dict": opt.state_dict(),
-                    })
+        if args.save_dir is not None:
+            args.save_dir.mkdir(exist_ok=True, parents=True)
+            torch.save({"epoch": epoch,
+                        "model_state_dict": model.state_dict(),
+                        "optimizer_state_dict": opt.state_dict(),
+                        }, args.save_dir / "model.pt")
 
 
 if __name__ == '__main__':
