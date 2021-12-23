@@ -25,6 +25,7 @@ if __name__ == '__main__':
     parser.add_argument('--reduce_lr_factor', type=int, default=3)
     parser.add_argument('--min_learning_rate', type=float, default=5e-6)
     parser.add_argument('--save_dir', type=Path)
+    parser.add_argument('--tensorboard_dir', type=Path)
     # These parameters control the data pipeline
     parser.add_argument('--dataset_path', type=Path, required=True)
     parser.add_argument('--batch_size', type=int, default=1024)
@@ -64,6 +65,9 @@ if __name__ == '__main__':
         if checkpoint_path.is_file():
             model.load_weights(checkpoint_path)
         callbacks.append(tf.keras.callbacks.ModelCheckpoint(checkpoint_path, save_weights_only=True))
+    if args.tensorboard_dir is not None:
+        args.tensorboard_dir.mkdir(exist_ok=True, parents=True)
+        callbacks.append(tf.keras.callbacks.TensorBoard(log_dir=args.tensorboard_dir))
     model.compile(optimizer=optimizer)
     array_shapes = [tuple([args.batch_size] + list(shape)) for shape in ARRAY_SHAPES_WITHOUT_BATCH]
     output_signature = tuple([tf.TensorSpec(shape=shape, dtype=tf.float32) for shape in array_shapes])
