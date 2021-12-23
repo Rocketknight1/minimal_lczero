@@ -10,9 +10,12 @@ RECORD_SIZE = 8356
 ARRAY_SHAPES_WITHOUT_BATCH = [(112, 64), (1858,), (3,), (3,), (1,)]
 
 
-def file_generator(file_list):
+def file_generator(file_list, random):
     while True:
-        shuffle(file_list)
+        if random:
+            shuffle(file_list)
+        else:
+            file_list = sorted(file_list)
         for file in file_list:
             # yield gzip.open(file, 'rb').read()
             yield deflate.gzip_decompress(file.read_bytes())
@@ -86,10 +89,13 @@ def extract_inputs_outputs_if1(raw):
     return inputs, policy, z, q, ply_count
 
 
-def offset_generator(batch_size, record_size, skip_factor):
+def offset_generator(batch_size, record_size, skip_factor, random):
     initial_offset = 0
     while True:
-        retained_indices = np.random.choice(batch_size * skip_factor, size=batch_size, replace=False)
+        if random:
+            retained_indices = np.random.choice(batch_size * skip_factor, size=batch_size, replace=False)
+        else:
+            retained_indices = np.array([i * skip_factor for i in range(batch_size)])
         retained_indices = np.sort(retained_indices)
         next_offset = batch_size * skip_factor - retained_indices[-1]  # Bump us up to the end of the current skip-batch
         skip_offsets = np.diff(retained_indices, prepend=0)
@@ -99,10 +105,11 @@ def offset_generator(batch_size, record_size, skip_factor):
         initial_offset = next_offset
 
 
-def data_generator(files, batch_size, skip_factor):
+def data_generator(files, batch_size, skip_factor, validation):
     # This is a singlethreaded generator for debugging
-    file_gen = file_generator(files)
-    offset_gen = offset_generator(batch_size=batch_size, record_size=RECORD_SIZE, skip_factor=skip_factor)
+    file_gen = file_generator(files, random=not validation)
+    offset_gen = offset_generator(batch_size=batch_size, record_size=RECORD_SIZE, skip_factor=skip_factor,
+                                  random=not validation)
     data = np.zeros((batch_size, RECORD_SIZE), dtype=np.uint8)
     current_file = next(file_gen)
     file_ptr = 0
@@ -125,13 +132,13 @@ def data_generator(files, batch_size, skip_factor):
             file_ptr = 0
 
 
-def data_worker(files, batch_size, skip_factor, array_ready_event, main_process_access_event, shared_array_names):
+def data_worker(files, batch_size, skip_factor, array_ready_event, main_process_access_event, shared_array_names, validation):
     shared_mem = [SharedMemory(name=name, create=False) for name in shared_array_names]
     array_shapes = [[batch_size] + list(shape) for shape in ARRAY_SHAPES_WITHOUT_BATCH]
     shared_arrays = [np.ndarray(shape, dtype=np.float32, buffer=mem.buf)
                      for shape, mem in zip(array_shapes, shared_mem)]
-    file_gen = file_generator(files)
-    offset_gen = offset_generator(batch_size=batch_size, record_size=RECORD_SIZE, skip_factor=skip_factor)
+    file_gen = file_generator(files, random=not validation)
+    offset_gen = offset_generator(batch_size=batch_size, record_size=RECORD_SIZE, skip_factor=skip_factor, random=not validation)
     data = np.zeros((batch_size, RECORD_SIZE), dtype=np.uint8)
     current_file = next(file_gen)
     file_ptr = 0
@@ -159,12 +166,15 @@ def data_worker(files, batch_size, skip_factor, array_ready_event, main_process_
             file_ptr = 0
 
 
-def multiprocess_generator(chunk_dir, batch_size, num_workers, skip_factor, shuffle_buffer_size):
+def multiprocess_generator(chunk_dir, batch_size, num_workers, skip_factor, shuffle_buffer_size, validation=False):
     assert shuffle_buffer_size % batch_size == 0  # This simplifies my life later on
     print("Scanning directory for game data chunks...")
     files = list(tqdm(chunk_dir.glob('**/*.gz'), desc="Files found", unit=" files"))
     print("Done!")
-    shuffle(files)
+    if validation:
+        files = sorted(files)
+    else:
+        shuffle(files)
     worker_file_lists = [files[i::num_workers] for i in range(num_workers)]
     ctx = get_context('spawn')  # For Windows compatibility
     array_ready_events = []
@@ -192,7 +202,8 @@ def multiprocess_generator(chunk_dir, batch_size, num_workers, skip_factor, shuf
             "files": worker_file_lists[i], "skip_factor": skip_factor,
             "batch_size": batch_size, "array_ready_event": array_ready_event,
             "main_process_access_event": main_process_access_event,
-            "shared_array_names": shared_mem_names}, daemon=True)
+            "shared_array_names": shared_mem_names,
+            "validation": validation}, daemon=True)
         process.start()
 
     for i in trange(shuffle_buffer_size // batch_size, desc="Filling shuffle buffer"):
@@ -214,7 +225,6 @@ def multiprocess_generator(chunk_dir, batch_size, num_workers, skip_factor, shuf
                 shuffle_buffer[random_indices] = arr
             array_ready_event.clear()
             main_process_access_event.set()
-
 
 
 def make_callable(chunk_dir, batch_size, num_workers, skip_factor, shuffle_buffer_size):
