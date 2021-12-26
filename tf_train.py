@@ -30,7 +30,7 @@ if __name__ == '__main__':
     parser.add_argument('--dataset_path', type=Path, required=True)
     parser.add_argument('--batch_size', type=int, default=1024)
     parser.add_argument('--num_workers', type=int, default=4)
-    parser.add_argument('--shuffle_buffer_size', type=int, default=2 ** 17)
+    parser.add_argument('--shuffle_buffer_size', type=int, default=2 ** 19)
     parser.add_argument('--skip_factor', type=int, default=32)
     # These parameters control the loss calculation. They should not be changed unless you
     # know what you're doing, as the loss values you get will not be comparable with other
@@ -62,12 +62,10 @@ if __name__ == '__main__':
     if args.save_dir is not None:
         args.save_dir.mkdir(exist_ok=True, parents=True)
         checkpoint_path = args.save_dir / 'checkpoint'
-        if checkpoint_path.is_file():
-            model.load_weights(checkpoint_path)
-        callbacks.append(tf.keras.callbacks.ModelCheckpoint(checkpoint_path, save_weights_only=True))
+        callbacks.append(tf.keras.callbacks.experimental.BackupAndRestore(checkpoint_path))
     if args.tensorboard_dir is not None:
         args.tensorboard_dir.mkdir(exist_ok=True, parents=True)
-        callbacks.append(tf.keras.callbacks.TensorBoard(log_dir=args.tensorboard_dir))
+        callbacks.append(tf.keras.callbacks.TensorBoard(log_dir=args.tensorboard_dir, update_freq='batch'))
     model.compile(optimizer=optimizer)
     array_shapes = [tuple([args.batch_size] + list(shape)) for shape in ARRAY_SHAPES_WITHOUT_BATCH]
     output_signature = tuple([tf.TensorSpec(shape=shape, dtype=tf.float32) for shape in array_shapes])
