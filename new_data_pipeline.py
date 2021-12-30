@@ -3,6 +3,7 @@ from pathlib import Path
 from random import shuffle
 from tqdm import tqdm, trange
 import deflate
+import zstd
 from multiprocessing import get_context
 from multiprocessing.shared_memory import SharedMemory
 
@@ -11,6 +12,7 @@ ARRAY_SHAPES_WITHOUT_BATCH = [(112, 64), (1858,), (3,), (3,), (1,)]
 
 
 def file_generator(file_list, random):
+    zstd_context = zstd.ZstdDecompressor()
     while True:
         if random:
             shuffle(file_list)
@@ -18,7 +20,10 @@ def file_generator(file_list, random):
             file_list = sorted(file_list)
         for file in file_list:
             # yield gzip.open(file, 'rb').read()
-            yield deflate.gzip_decompress(file.read_bytes())
+            if file.name.endswith('.gz'):
+                yield deflate.gzip_decompress(file.read_bytes())
+            else:
+                yield zstd_context.decompress(file.read_bytes())
 
 
 def extract_rule50_zero_one(raw):

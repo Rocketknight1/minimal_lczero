@@ -1,3 +1,4 @@
 deflate
 tqdm
 numpy
+zstandard

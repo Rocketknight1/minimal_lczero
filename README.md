@@ -38,7 +38,8 @@ heads represent Leela's estimates for the **policy** (which move to make), the *
 is) and the **moves left** (how much longer the game will last after this position). These three outputs
 are used to guide Leela's search.
 
-The code here should be simple enough to modify easily if you're familiar with TF/Keras (PyTorch version coming soon!).
+The code here should be simple enough to modify easily if you're familiar with TF/Keras. There's also a PyTorch
+version, which may be slightly (but not too far) behind the TF one.
 Note that the output heads like `ConvolutionalPolicyHead` assume that you're passing them a channels-first tensor,
 like you'd get in a convolutional network, with shape (batch, channels, width, height). If you're trying a totally 
 different architecture, you may prefer to try the other heads in `tf_layers.py` like `DensePolicyHead` instead. 

@@ -17,8 +17,8 @@ if __name__ == '__main__':
     parser.add_argument('--num_filters', type=int, default=128)
     parser.add_argument('--num_residual_blocks', type=int, default=10)
     parser.add_argument('--se_ratio', type=int, default=8)
-    parser.add_argument('--constrain_norms', action='store_true')
     parser.add_argument('--learning_rate', type=float, default=3e-4)
+    parser.add_argument('--no_constrain_norms', action='store_true')
     parser.add_argument('--max_grad_norm', type=float, default=5.6)
     parser.add_argument('--mixed_precision', action='store_true')
     parser.add_argument('--reduce_lr_every_n_epochs', type=int)
@@ -46,7 +46,7 @@ if __name__ == '__main__':
     model = LeelaZeroNet(num_filters=args.num_filters,
                          num_residual_blocks=args.num_residual_blocks,
                          se_ratio=args.se_ratio,
-                         constrain_norms=args.constrain_norms,
+                         constrain_norms=not args.no_constrain_norms,
                          policy_loss_weight=args.policy_loss_weight,
                          value_loss_weight=args.value_loss_weight,
                          moves_left_loss_weight=args.moves_left_loss_weight,
