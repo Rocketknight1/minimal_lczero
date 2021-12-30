@@ -2,6 +2,41 @@ import tensorflow as tf
 import lc0_az_policy_map
 
 
+class L2WeightDecay(tf.keras.constraints.Constraint):
+    def __init__(self, decay_rate):
+        super().__init__()
+        self.decay_factor = 1 - decay_rate
+
+    def __call__(self, w):
+        return w * self.decay_factor
+
+
+class NormConstraint(tf.keras.constraints.Constraint):
+    def __init__(self, initialization_type=None):
+        self.initialization_type = initialization_type
+
+    def __call__(self, w):
+        fan_in = tf.cast(tf.reduce_prod(w.shape[:-1]), tf.float32)
+        fan_out = tf.cast(w.shape[-1], tf.float32)
+        n_dims = fan_in * fan_out
+        # The expected norms with _uniform and _normal versions of each initializer
+        # are equivalent but have some bonus maths for clarity anyway
+        if self.initialization_type == 'glorot_uniform':
+            limit = tf.sqrt(6 / (fan_in + fan_out))
+            desired_norm = tf.sqrt(n_dims / 3) * limit
+        elif self.initialization_type == 'he_uniform':
+            limit = tf.sqrt(6 / fan_in)
+            desired_norm = tf.sqrt(n_dims / 3) * limit
+        elif self.initialization_type == 'glorot_normal':
+            scale = tf.sqrt(2 / (fan_in + fan_out))
+            desired_norm = scale * tf.sqrt(n_dims)
+        elif self.initializatio_tpe == 'he_normal':
+            scale = tf.sqrt(2 / fan_in)
+            desired_norm = scale * tf.sqrt(n_dims)
+        else:
+            raise ValueError("Unknown initialization type!")
+        return tf.clip_by_norm(w, desired_norm)
+
 class SqueezeExcitation(tf.keras.layers.Layer):
     def __init__(self, se_ratio, name):
         super().__init__()
@@ -32,16 +67,16 @@ class SqueezeExcitation(tf.keras.layers.Layer):
 
 
 class ConvBlock(tf.keras.layers.Layer):
-    def __init__(self, filter_size, output_channels, l2_reg, name, bn_scale):
+    def __init__(self, filter_size, output_channels, constrain_norms, name, bn_scale):
         super().__init__()
-        if l2_reg is None or l2_reg == 0:
-            regularizer = None
+        if constrain_norms:
+            constraint = NormConstraint("glorot_normal")
         else:
-            regularizer = tf.keras.regularizers.L2(l2_reg)
+            constraint = None
         self.conv_layer = tf.keras.layers.Conv2D(output_channels, filter_size, use_bias=False,
                                                  padding='same',
                                                  kernel_initializer='glorot_normal',
-                                                 kernel_regularizer=regularizer,
+                                                 kernel_constraint=constraint,
                                                  data_format='channels_first',
                                                  name=name + '/conv2d'
                                                  )
@@ -55,25 +90,25 @@ class ConvBlock(tf.keras.layers.Layer):
 
     def call(self, inputs, training=None, mask=None):
         out = self.conv_layer(inputs)
-        out = self.batchnorm(out)
+        out = self.batchnorm(out, training=training)
         return tf.keras.activations.relu(out)
 
 
 class ResidualBlock(tf.keras.layers.Layer):
-    def __init__(self, channels, se_ratio, l2_reg, name):
+    def __init__(self, channels, se_ratio, constrain_norms, name):
         super().__init__()
-        # We always retain L2 regularization in the residual block because it's necessary when combined with
+        # We always retain norm constraints in the residual block because it's necessary when combined with
         # batchnorms, see https://blog.janestreet.com/l2-regularization-and-batch-norm/
-        if l2_reg is None or l2_reg == 0:
-            regularizer = None
+        if constrain_norms:
+            constraint = NormConstraint("glorot_normal")
         else:
-            regularizer = tf.keras.regularizers.L2(l2_reg)
+            constraint = None
         self.conv1 = tf.keras.layers.Conv2D(channels,
                                             3,
                                             use_bias=False,
                                             padding='same',
                                             kernel_initializer='glorot_normal',
-                                            kernel_regularizer=regularizer,
+                                            kernel_constraint=constraint,
                                             data_format='channels_first',
                                             name=name + '/1/conv2d')
         self.batch_norm = tf.keras.layers.BatchNormalization(
@@ -88,7 +123,7 @@ class ResidualBlock(tf.keras.layers.Layer):
                                             use_bias=False,
                                             padding='same',
                                             kernel_initializer='glorot_normal',
-                                            kernel_regularizer=regularizer,
+                                            kernel_constraint=constraint,
                                             data_format='channels_first',
                                             name=name + '/2/conv2d')
         self.squeeze_excite = SqueezeExcitation(se_ratio, name=name + '/se')
@@ -102,11 +137,11 @@ class ResidualBlock(tf.keras.layers.Layer):
 
 
 class ConvolutionalPolicyHead(tf.keras.layers.Layer):
-    def __init__(self, num_filters, l2_reg):
+    def __init__(self, num_filters, constrain_norms):
         super().__init__()
         self.conv_block = ConvBlock(filter_size=3, output_channels=num_filters,
-                                    l2_reg=l2_reg, name='policy1', bn_scale=True)
-        # No l2_reg on the final convolution, because it's not going to be followed by a batchnorm
+                                    constrain_norms=constrain_norms, name='policy1', bn_scale=True)
+        # No constraint on the final convolution, because it's not going to be followed by a batchnorm
         self.conv = tf.keras.layers.Conv2D(
             80,
             3,
@@ -130,7 +165,7 @@ class DensePolicyHead(tf.keras.layers.Layer):
         super().__init__()
         self.fc1 = tf.keras.layers.Dense(hidden_dim, kernel_initializer='glorot_normal',
                                          name='policy/dense1', activation='relu')
-        # No l2_reg on the final layer, because it's not going to be followed by a batchnorm
+        # No constraint on the final layer, because it's not going to be followed by a batchnorm
         self.fc_final = tf.keras.layers.Dense(1858,
                                               kernel_initializer='glorot_normal',
                                               name='policy/dense')
@@ -144,12 +179,12 @@ class DensePolicyHead(tf.keras.layers.Layer):
 
 
 class ConvolutionalValueOrMovesLeftHead(tf.keras.layers.Layer):
-    def __init__(self, output_dim, num_filters, hidden_dim, l2_reg, relu):
+    def __init__(self, output_dim, num_filters, hidden_dim, constrain_norms, relu):
         super().__init__()
         self.num_filters = num_filters
         self.conv_block = ConvBlock(filter_size=1, output_channels=num_filters,
-                                    l2_reg=l2_reg, name='value/conv', bn_scale=True)
-        # No l2_reg on the final layers, because they're not going to be followed by a batchnorm
+                                    constrain_norms=constrain_norms, name='value/conv', bn_scale=True)
+        # No constraint on the final layers, because they're not going to be followed by a batchnorm
         self.fc1 = tf.keras.layers.Dense(
             hidden_dim,
             use_bias=True,

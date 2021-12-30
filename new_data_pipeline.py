@@ -239,8 +239,8 @@ def make_callable(chunk_dir, batch_size, num_workers, skip_factor, shuffle_buffe
 def main():
     test_dir = Path("/home/matt/leela_training_data/rescored/training-run1-test60-20210701-0017")
     batch_size = 1024
-    num_workers = 4
-    shuffle_buffer_size = 2 ** 17
+    num_workers = 16
+    shuffle_buffer_size = 2 ** 19
     skip_factor = 32
     gen = multiprocess_generator(chunk_dir=test_dir, batch_size=batch_size,
                                  num_workers=num_workers, skip_factor=skip_factor,

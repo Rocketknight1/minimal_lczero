@@ -17,7 +17,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_filters', type=int, default=128)
     parser.add_argument('--num_residual_blocks', type=int, default=10)
     parser.add_argument('--se_ratio', type=int, default=8)
-    parser.add_argument('--l2_reg', type=float, default=0.0005)
+    parser.add_argument('--constrain_norms', action='store_true')
     parser.add_argument('--learning_rate', type=float, default=3e-4)
     parser.add_argument('--max_grad_norm', type=float, default=5.6)
     parser.add_argument('--mixed_precision', action='store_true')
@@ -46,7 +46,7 @@ if __name__ == '__main__':
     model = LeelaZeroNet(num_filters=args.num_filters,
                          num_residual_blocks=args.num_residual_blocks,
                          se_ratio=args.se_ratio,
-                         l2_reg=args.l2_reg,
+                         constrain_norms=args.constrain_norms,
                          policy_loss_weight=args.policy_loss_weight,
                          value_loss_weight=args.value_loss_weight,
                          moves_left_loss_weight=args.moves_left_loss_weight,
@@ -65,7 +65,8 @@ if __name__ == '__main__':
         callbacks.append(tf.keras.callbacks.experimental.BackupAndRestore(checkpoint_path))
     if args.tensorboard_dir is not None:
         args.tensorboard_dir.mkdir(exist_ok=True, parents=True)
-        callbacks.append(tf.keras.callbacks.TensorBoard(log_dir=args.tensorboard_dir, update_freq='batch'))
+        callbacks.append(tf.keras.callbacks.TensorBoard(log_dir=args.tensorboard_dir, update_freq='batch',
+                                                        histogram_freq=1))
     model.compile(optimizer=optimizer)
     array_shapes = [tuple([args.batch_size] + list(shape)) for shape in ARRAY_SHAPES_WITHOUT_BATCH]
     output_signature = tuple([tf.TensorSpec(shape=shape, dtype=tf.float32) for shape in array_shapes])

@@ -8,21 +8,21 @@ def qmix(z, q, q_ratio):
 
 
 class LeelaZeroNet(tf.keras.Model):
-    def __init__(self, num_filters, num_residual_blocks, se_ratio, l2_reg, policy_loss_weight,
+    def __init__(self, num_filters, num_residual_blocks, se_ratio, constrain_norms, policy_loss_weight,
                  value_loss_weight, moves_left_loss_weight, q_ratio):
         super().__init__()
         self.input_reshape = tf.keras.layers.Reshape((112, 8, 8))
-        self.input_block = ConvBlock(filter_size=3, output_channels=num_filters, l2_reg=l2_reg, bn_scale=True,
-                                     name='input_block')
-        self.residual_blocks = [ResidualBlock(channels=num_filters, se_ratio=se_ratio, l2_reg=l2_reg,
+        self.input_block = ConvBlock(filter_size=3, output_channels=num_filters, constrain_norms=constrain_norms,
+                                     bn_scale=True, name='input_block')
+        self.residual_blocks = [ResidualBlock(channels=num_filters, se_ratio=se_ratio, constrain_norms=constrain_norms,
                                               name=f'residual_block_{i}') for i in range(num_residual_blocks)]
-        self.policy_head = ConvolutionalPolicyHead(num_filters=num_filters, l2_reg=l2_reg)
+        self.policy_head = ConvolutionalPolicyHead(num_filters=num_filters, constrain_norms=constrain_norms)
         # The value head has 3 dimensions for estimating the likelihood of win/draw/loss (WDL)
         self.value_head = ConvolutionalValueOrMovesLeftHead(output_dim=3, num_filters=32, hidden_dim=128,
-                                                            l2_reg=l2_reg, relu=False)
+                                                            constrain_norms=constrain_norms, relu=False)
         # Moves left cannot be less than 0, so we use relu to clamp
         self.moves_left_head = ConvolutionalValueOrMovesLeftHead(output_dim=1, num_filters=8, hidden_dim=128,
-                                                                 l2_reg=l2_reg, relu=True)
+                                                                 constrain_norms=constrain_norms, relu=True)
         self.policy_loss_weight = policy_loss_weight
         self.value_loss_weight = value_loss_weight
         self.moves_left_loss_weight = moves_left_loss_weight
