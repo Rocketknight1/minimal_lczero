@@ -68,8 +68,22 @@ Just run `pt_train.py`! It takes the same arguments as `tf_train.py`, but traini
 in terms of both epoch speed and iterations to achieve the same loss. I suspect there are a couple of bugs
 or layers that aren't quite equivalent in there still, but I'm working on it!
 
+### Notes on weight decay
+
+If you examine the TF code, you might notice that there's no L2 regularization, but there is a very weird
+hand-rolled constraint on the norms of several weight tensors. The reason for this is straightfoward: The 
+primary purpose of L2 penalties in most neural nets is not regularization at all, especially for nets like
+Leela where training data is effectively infinite and overfitting is not a concern. Instead, the reason for
+using L2 penalties is to ensure that the weights in layers preceding batchnorms do not blow up. There's an
+excellent explanation for this phenomenon [here](https://blog.janestreet.com/l2-regularization-and-batch-norm/).
+
+Tuning weight decay can be tricky, however, and it's doubly tricky because [standard L2 penalties fail to decay
+weights correctly when using the Adam optimizer](https://arxiv.org/abs/1711.05101). As a result, it's extremely
+easy to get an invisible weight blowup when training with Adam, which will silently decay your effective learning 
+rate. To work around this problem, I add a maximum norm constraint to all weight tensors
+preceding batchnorms. The maximum norm is set to be the expected norm at initialization. This eliminates an
+annoying hyperparameter and performs better as well.
+
 ### Roadmap for this repo
 
-1) Add some Tensorboard logging
-2) Handle LR decay properly
-3) Upload a standard training set
+1) Upload a standard training set
