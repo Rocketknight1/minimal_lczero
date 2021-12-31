@@ -30,7 +30,7 @@ class NormConstraint(tf.keras.constraints.Constraint):
         elif self.initialization_type == 'glorot_normal':
             scale = tf.sqrt(2 / (fan_in + fan_out))
             desired_norm = scale * tf.sqrt(n_dims)
-        elif self.initializatio_tpe == 'he_normal':
+        elif self.initialization_type == 'he_normal':
             scale = tf.sqrt(2 / fan_in)
             desired_norm = scale * tf.sqrt(n_dims)
         else:
