@@ -248,7 +248,8 @@ def make_callable(chunk_dir, batch_size, num_workers, skip_factor, shuffle_buffe
 
 
 def main():
-    test_dir = Path("/home/matt/leela_training_data/rescored/training-run1-test60-20210701-0017")
+    import sys
+    test_dir = Path(sys.argv[1])
     batch_size = 1024
     num_workers = 16
     shuffle_buffer_size = 2 ** 19
