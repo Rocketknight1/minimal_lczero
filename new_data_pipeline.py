@@ -3,7 +3,7 @@ from pathlib import Path
 from random import shuffle
 from tqdm import tqdm, trange
 import deflate
-import zstd
+import zstandard
 from multiprocessing import get_context
 from multiprocessing.shared_memory import SharedMemory
 
@@ -12,7 +12,7 @@ ARRAY_SHAPES_WITHOUT_BATCH = [(112, 64), (1858,), (3,), (3,), (1,)]
 
 
 def file_generator(file_list, random):
-    zstd_context = zstd.ZstdDecompressor()
+    zstd_context = zstandard.ZstdDecompressor()
     while True:
         if random:
             shuffle(file_list)
@@ -174,7 +174,9 @@ def data_worker(files, batch_size, skip_factor, array_ready_event, main_process_
 def multiprocess_generator(chunk_dir, batch_size, num_workers, skip_factor, shuffle_buffer_size, validation=False):
     assert shuffle_buffer_size % batch_size == 0  # This simplifies my life later on
     print("Scanning directory for game data chunks...")
-    files = list(tqdm(chunk_dir.glob('**/*.gz'), desc="Files found", unit=" files"))
+    files = list(tqdm(chunk_dir.glob('**/*'), desc="Files scanned", unit=" files"))
+    files = [file for file in files if file.suffix in ('.gz', '.zst')]
+    print(f"{len(files)} matching files.")
     print("Done!")
     if validation:
         files = sorted(files)
