@@ -22,8 +22,10 @@ def file_generator(file_list, random):
             # yield gzip.open(file, 'rb').read()
             if file.name.endswith('.gz'):
                 yield deflate.gzip_decompress(file.read_bytes())
-            else:
+            elif file.name.endswith('.zst'):
                 yield zstd_context.decompress(file.read_bytes())
+            else:
+                raise RuntimeError("Unknown file type!")
 
 
 def extract_rule50_zero_one(raw):
@@ -176,6 +178,8 @@ def multiprocess_generator(chunk_dir, batch_size, num_workers, skip_factor, shuf
     print("Scanning directory for game data chunks...")
     files = list(tqdm(chunk_dir.glob('**/*'), desc="Files scanned", unit=" files"))
     files = [file for file in files if file.suffix in ('.gz', '.zst')]
+    if len(files) == 0:
+        raise FileNotFoundError("No valid input files!")
     print(f"{len(files)} matching files.")
     print("Done!")
     if validation:
