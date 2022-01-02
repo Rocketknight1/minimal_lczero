@@ -47,9 +47,15 @@ These assume the input is a flat tensor of shape (batch, hidden_dim).
 
 ### Where do I get data? How do I load it?
 
-The input pipeline is in `new_data_pipeline.py`. You shouldn't need to modify it, but you can look around if you like!
-For testing and benchmarking you can also run that script alone, to get sample inputs from the pipeline without
-initializing any modules.
+There's a standard dataset [here](https://drive.google.com/drive/folders/1kPVhp9unMFFMrm5KpRw21HGhXUgAZPjo?usp=sharing).
+Each tarball contains one day of training data from the `test60` run. All data has been rescored and recompressed
+with zstandard and is ready for training. As the data is quite large (~250GB), I suggest downloading and extracting only
+a single file to start, and only downloading the whole set when your model is ready and you want to get accurate
+benchmark results. 
+
+As for loading the data, the input pipeline is in `new_data_pipeline.py`. You shouldn't need to modify it, but you can 
+look around if you like! For testing and benchmarking you can also run that script alone, to get sample inputs from the
+pipeline without initializing any modules.
 
 The pipeline can manage about 50k pos/s before the shuffle buffer becomes the bottleneck - this should be enough to 
 saturate any single GPU even for a very small network. It might become a bottleneck if you want to train a very small
@@ -60,8 +66,21 @@ here yet, unfortunately!
 
 ### How do I actually run training?
 
-Just run `tf_train.py`! You'll need a dataset, though - I'm working on that bit. In the meantime, people familiar
+Just run `tf_train.py`! You'll need a dataset, either the standard dataset linked above, or people familiar
 with Leela can use any directory of v6 chunks.
+
+A sample invocation would look something like this:
+
+```
+python tf_train.py \
+--dataset_path /path/to/extracted/tar/files/ \
+--mixed_precision \
+--num_workers 6 \
+--batch_size 1024 \
+--tensorboard_dir tensorboard_logs/ \
+--save_dir 128x10 \
+--reduce_lr_every_n_epochs 30
+```
 
 ### How do I run PyTorch training?
 
@@ -94,6 +113,4 @@ benchmark against when testing new architectures. Standard architectures are des
 |--------------|-------------|------------|-----------------|------------|
 | 128x10b      |   1.8880    | 0.6773     | 0.3921          | 3.1677     |
 
-### Roadmap for this repo
-
-1) Upload a standard training set
+### 
