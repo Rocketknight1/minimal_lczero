@@ -37,6 +37,7 @@ class NormConstraint(tf.keras.constraints.Constraint):
             raise ValueError("Unknown initialization type!")
         return tf.clip_by_norm(w, desired_norm)
 
+
 class SqueezeExcitation(tf.keras.layers.Layer):
     def __init__(self, se_ratio, name):
         super().__init__()
