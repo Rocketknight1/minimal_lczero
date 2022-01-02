@@ -85,6 +85,15 @@ rate. To work around this problem, I add a maximum norm constraint to all weight
 preceding batchnorms. The maximum norm is set to be the expected norm at initialization. This eliminates an
 annoying hyperparameter and performs better as well.
 
+### Results on benchmark training set
+
+Here are some sample losses following training to convergence with the standard training set. You can use these to
+benchmark against when testing new architectures. Standard architectures are described as (num_filters)x(num_blocks)b.
+
+| Architecture | Policy Loss | Value loss | Moves left Loss | Total loss |
+|--------------|-------------|------------|-----------------|------------|
+| 128x10b      |   1.8880    | 0.6773     | 0.3921          | 3.1677     |
+
 ### Roadmap for this repo
 
 1) Upload a standard training set
