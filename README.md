@@ -61,9 +61,6 @@ The pipeline can manage about 50k pos/s before the shuffle buffer becomes the bo
 saturate any single GPU even for a very small network. It might become a bottleneck if you want to train a very small
 net on a very fast GPU fleet, but that sounds like a weird thing to do.
 
-As for data, I'm working on building a standard dataset for benchmarking, which I'll probably host as a torrent. It's not 
-here yet, unfortunately!
-
 ### How do I actually run training?
 
 Just run `tf_train.py`! You'll need a dataset, either the standard dataset linked above, or people familiar
