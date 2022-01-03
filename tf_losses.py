@@ -7,14 +7,17 @@ def policy_loss(target, output):
     # The large negative values will still break the loss, so we replace them with 0 once we finish masking
     target = tf.nn.relu(target)
     # The stop gradient is maybe paranoia, but it can't hurt
-    policy_cross_entropy = tf.nn.softmax_cross_entropy_with_logits(labels=tf.stop_gradient(target), logits=output)
+    policy_cross_entropy = tf.nn.softmax_cross_entropy_with_logits(
+        labels=tf.stop_gradient(target), logits=output
+    )
     return tf.reduce_mean(input_tensor=policy_cross_entropy)
 
 
 def value_loss(target, output):
     output = tf.cast(output, tf.float32)
     value_cross_entropy = tf.nn.softmax_cross_entropy_with_logits(
-        labels=tf.stop_gradient(target), logits=output)
+        labels=tf.stop_gradient(target), logits=output
+    )
     return tf.reduce_mean(input_tensor=value_cross_entropy)
 
 

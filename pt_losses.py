@@ -24,4 +24,4 @@ def moves_left_loss(target: torch.Tensor, output: torch.Tensor):
     scale = 20.0
     target = target / scale
     output = output / scale
-    return F.huber_loss(output, target, reduction='mean', delta=10.0 / scale)
+    return F.huber_loss(output, target, reduction="mean", delta=10.0 / scale)

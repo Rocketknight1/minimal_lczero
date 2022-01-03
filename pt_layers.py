@@ -12,8 +12,7 @@ class SqueezeExcitation(nn.Module):
         self.se_ratio = se_ratio
         self.pooler = nn.AdaptiveAvgPool2d(1)
         self.squeeze = nn.Sequential(
-            nn.Linear(channels, int(channels // se_ratio), bias=False),
-            nn.ReLU()
+            nn.Linear(channels, int(channels // se_ratio), bias=False), nn.ReLU()
         )
         self.expand = nn.Linear(int(channels // se_ratio), channels * 2, bias=False)
         self.channels = channels
@@ -30,9 +29,11 @@ class SqueezeExcitation(nn.Module):
 
 
 class ConvBlock(nn.Module):
-    def __init__(self, input_channels,  output_channels, filter_size):
+    def __init__(self, input_channels, output_channels, filter_size):
         super().__init__()
-        self.conv_layer = nn.Conv2d(input_channels, output_channels, filter_size, bias=False, padding='same')
+        self.conv_layer = nn.Conv2d(
+            input_channels, output_channels, filter_size, bias=False, padding="same"
+        )
         self.batchnorm = nn.BatchNorm2d(output_channels)
         nn.init.xavier_normal_(self.conv_layer.weight)
 
@@ -45,17 +46,21 @@ class ConvBlock(nn.Module):
 class ResidualBlock(nn.Module):
     def __init__(self, channels, se_ratio):
         super().__init__()
-        self.conv1 = nn.Conv2d(channels, channels,
-                                            3,
-                                            bias=False,
-                                            padding='same',
-                            )
+        self.conv1 = nn.Conv2d(
+            channels,
+            channels,
+            3,
+            bias=False,
+            padding="same",
+        )
         self.batch_norm = nn.BatchNorm2d(channels, affine=False)
-        self.conv2 = nn.Conv2d(channels, channels,
-                                            3,
-                                            bias=False,
-                                            padding='same',
-                             )
+        self.conv2 = nn.Conv2d(
+            channels,
+            channels,
+            3,
+            bias=False,
+            padding="same",
+        )
         nn.init.xavier_normal_(self.conv1.weight)
         nn.init.xavier_normal_(self.conv2.weight)
         self.squeeze_excite = SqueezeExcitation(channels, se_ratio)
@@ -71,15 +76,18 @@ class ResidualBlock(nn.Module):
 class ConvolutionalPolicyHead(nn.Module):
     def __init__(self, num_filters):
         super().__init__()
-        self.conv_block = ConvBlock(filter_size=3, input_channels=num_filters, output_channels=num_filters)
+        self.conv_block = ConvBlock(
+            filter_size=3, input_channels=num_filters, output_channels=num_filters
+        )
         # No l2_reg on the final convolution, because it's not going to be followed by a batchnorm
-        self.conv = nn.Conv2d(num_filters,
-            80,
-            3,
-            bias=True,
-            padding='same')
+        self.conv = nn.Conv2d(num_filters, 80, 3, bias=True, padding="same")
         nn.init.xavier_normal_(self.conv.weight)
-        self.fc1 = nn.parameter.Parameter(torch.tensor(lc0_az_policy_map.make_map(), requires_grad=False, dtype=torch.float32), requires_grad=False)
+        self.fc1 = nn.parameter.Parameter(
+            torch.tensor(
+                lc0_az_policy_map.make_map(), requires_grad=False, dtype=torch.float32
+            ),
+            requires_grad=False,
+        )
 
     def forward(self, inputs):
         flow = self.conv_block(inputs)
@@ -108,12 +116,11 @@ class ConvolutionalValueOrMovesLeftHead(nn.Module):
     def __init__(self, input_dim, output_dim, num_filters, hidden_dim, relu):
         super().__init__()
         self.num_filters = num_filters
-        self.conv_block = ConvBlock(input_channels=input_dim, filter_size=1, output_channels=num_filters)
+        self.conv_block = ConvBlock(
+            input_channels=input_dim, filter_size=1, output_channels=num_filters
+        )
         # No l2_reg on the final layers, because they're not going to be followed by a batchnorm
-        self.fc1 = nn.Linear(
-            num_filters * 64,
-            hidden_dim,
-            bias=True)
+        self.fc1 = nn.Linear(num_filters * 64, hidden_dim, bias=True)
         self.fc_out = nn.Linear(hidden_dim, output_dim, bias=True)
         self.relu = relu
         nn.init.xavier_normal_(self.fc1.weight)
