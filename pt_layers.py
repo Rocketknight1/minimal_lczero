@@ -2,7 +2,6 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 import lc0_az_policy_map
-from torch.cuda.amp import autocast
 
 
 class SqueezeExcitation(nn.Module):
@@ -34,7 +33,7 @@ class ConvBlock(nn.Module):
         self.conv_layer = nn.Conv2d(
             input_channels, output_channels, filter_size, bias=False, padding="same"
         )
-        self.batchnorm = nn.BatchNorm2d(output_channels)
+        self.batchnorm = nn.BatchNorm2d(output_channels, affine=True)
         nn.init.xavier_normal_(self.conv_layer.weight)
 
     def forward(self, inputs):
@@ -53,7 +52,7 @@ class ResidualBlock(nn.Module):
             bias=False,
             padding="same",
         )
-        self.batch_norm = nn.BatchNorm2d(channels, affine=False)
+        self.batch_norm = nn.BatchNorm2d(channels, affine=True)
         self.conv2 = nn.Conv2d(
             channels,
             channels,

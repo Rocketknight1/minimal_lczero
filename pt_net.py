@@ -3,27 +3,22 @@ from pt_layers import (
     ResidualBlock,
     ConvolutionalPolicyHead,
     ConvolutionalValueOrMovesLeftHead,
-    DensePolicyHead,
-    DenseValueOrMovesLeftHead,
 )
 from pt_losses import policy_loss, value_loss, moves_left_loss
 import torch
 from torch import nn
 from collections import OrderedDict
 from typing import Optional, NamedTuple
+import pytorch_lightning as pl
 
 
 class ModelOutput(NamedTuple):
     policy: torch.Tensor
     value: torch.Tensor
     moves_left: torch.Tensor
-    policy_loss: Optional[torch.Tensor]
-    value_loss: Optional[torch.Tensor]
-    moves_left_loss: Optional[torch.Tensor]
-    loss: Optional[torch.Tensor]
 
 
-class LeelaZeroNet(nn.Module):
+class LeelaZeroNet(pl.LightningModule):
     def __init__(
         self,
         num_filters,
@@ -67,20 +62,18 @@ class LeelaZeroNet(nn.Module):
         self.moves_left_loss_weight = moves_left_loss_weight
         self.q_ratio = q_ratio
 
-    def forward(
-        self,
-        input_planes: torch.Tensor,
-        policy_target: torch.Tensor,
-        wdl_target: torch.Tensor,
-        q_target: torch.Tensor,
-        moves_left_target: torch.Tensor,
-    ) -> ModelOutput:
+    def forward(self, input_planes: torch.Tensor) -> ModelOutput:
         flow = input_planes.reshape(-1, 112, 8, 8)
         flow = self.input_block(flow)
         flow = self.residual_blocks(flow)
         policy_out = self.policy_head(flow)
         value_out = self.value_head(flow)
         moves_left_out = self.moves_left_head(flow)
+        return ModelOutput(policy_out, value_out, moves_left_out)
+
+    def training_step(self, batch, batch_idx):
+        inputs, policy_target, wdl_target, q_target, moves_left_target = batch
+        policy_out, value_out, moves_left_out = self(inputs)
         value_target = q_target * self.q_ratio + wdl_target * (1 - self.q_ratio)
         p_loss = policy_loss(policy_target, policy_out)
         v_loss = value_loss(value_target, value_out)
@@ -90,6 +83,12 @@ class LeelaZeroNet(nn.Module):
             + self.value_loss_weight * v_loss
             + self.moves_left_loss_weight * ml_loss
         )
-        return ModelOutput(
-            policy_out, value_out, moves_left_out, p_loss, v_loss, ml_loss, total_loss
-        )
+        self.log("policy_loss", p_loss)
+        self.log("value_loss", v_loss)
+        self.log("moves_left_loss", ml_loss)
+        self.log("total_loss", total_loss)
+        return total_loss
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
+        return optimizer
