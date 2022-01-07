@@ -33,6 +33,7 @@ class ConvBlock(nn.Module):
         self.conv_layer = nn.Conv2d(
             input_channels, output_channels, filter_size, bias=False, padding="same"
         )
+        self.conv_layer.weight.clamp_weights = True
         self.batchnorm = nn.BatchNorm2d(output_channels, affine=True)
         nn.init.xavier_normal_(self.conv_layer.weight)
 
@@ -52,6 +53,7 @@ class ResidualBlock(nn.Module):
             bias=False,
             padding="same",
         )
+        self.conv1.weight.clamp_weights = True
         self.batch_norm = nn.BatchNorm2d(channels, affine=True)
         self.conv2 = nn.Conv2d(
             channels,
@@ -60,6 +62,7 @@ class ResidualBlock(nn.Module):
             bias=False,
             padding="same",
         )
+        self.conv2.weight.clamp_weights = True
         nn.init.xavier_normal_(self.conv1.weight)
         nn.init.xavier_normal_(self.conv2.weight)
         self.squeeze_excite = SqueezeExcitation(channels, se_ratio)
