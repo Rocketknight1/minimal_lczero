@@ -121,8 +121,7 @@ class ConvolutionalValueOrMovesLeftHead(nn.Module):
         self.conv_block = ConvBlock(
             input_channels=input_dim, filter_size=1, output_channels=num_filters
         )
-        # No l2_reg on the final layers, because they're not going to be followed by a batchnorm
-        self.fc1 = nn.Linear(num_filters * 64, hidden_dim, bias=True)
+        # No l2_reg on the final layer, because it's not going to be followed by a batchnorm
         self.fc_out = nn.Linear(hidden_dim, output_dim, bias=True)
         self.relu = relu
         nn.init.xavier_normal_(self.fc1.weight)
@@ -131,7 +130,6 @@ class ConvolutionalValueOrMovesLeftHead(nn.Module):
     def forward(self, inputs):
         flow = self.conv_block(inputs)
         flow = flow.reshape(-1, self.num_filters * 8 * 8)
-        flow = self.fc1(flow)
         flow = self.fc_out(flow)
         if self.relu:
             flow = F.relu(flow)
