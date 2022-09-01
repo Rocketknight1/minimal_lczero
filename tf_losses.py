@@ -12,8 +12,8 @@ def policy_loss(target, output):
     )
     return tf.reduce_mean(input_tensor=policy_cross_entropy)
 
-
 def value_loss(target, output):
+    # Value loss head is WDL, so this is a cross-entropy loss too
     output = tf.cast(output, tf.float32)
     value_cross_entropy = tf.nn.softmax_cross_entropy_with_logits(
         labels=tf.stop_gradient(target), logits=output
