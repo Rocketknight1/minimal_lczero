@@ -46,7 +46,7 @@ def main():
     parser.add_argument("--learning_rate", type=float, default=1e-3)
     parser.add_argument("--max_grad_norm", type=float, default=5.6)
     parser.add_argument("--mixed_precision", action="store_true")
-    parser.add_argument("--optimizer", type=str, default="adam", choices=["adam", "ranger21"])
+    parser.add_argument("--optimizer", type=str, default="adam", choices=["adam", "ranger21", "adan"])
     # These parameters control the data pipeline
     parser.add_argument("--dataset_path", type=Path, required=True)
     parser.add_argument("--batch_size", type=int, default=1024)
