@@ -217,21 +217,29 @@ class ConvolutionalValueOrMovesLeftHead(tf.keras.layers.Layer):
             filter_size=1,
             output_channels=num_filters,
             constrain_norms=constrain_norms,
-            name="value/conv",
+            name="conv",
             bn_scale=True,
         )
-        # No constraint on the final layer, because it's not going to be followed by a batchnorm
+        # No constraint on the final layers, because they're not going to be followed by a batchnorm
+        self.fc2 = tf.keras.layers.Dense(
+            hidden_dim,
+            use_bias=True,
+            activation="relu",
+            kernel_initializer="glorot_normal",
+            name="fc2")
+
         self.fc_out = tf.keras.layers.Dense(
             output_dim,
             use_bias=True,
             activation="relu" if relu else None,
             kernel_initializer="glorot_normal",
-            name="value/dense2",
+            name="fc_out",
         )
 
     def call(self, inputs, training=None, mask=None):
         flow = self.conv_block(inputs)
         flow = tf.reshape(flow, [-1, self.num_filters * 8 * 8])
+        flow = self.fc2(flow)
         return self.fc_out(flow)
 
 

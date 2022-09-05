@@ -81,7 +81,7 @@ class LeelaZeroNet(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         with torch.no_grad():
             for param in self.parameters():
-                if hasattr(param, "clamp_weights") and param.clamp_weights:
+                if getattr(param, "clamp_weights", False):
                     fan_in = prod(param.shape[1:])
                     fan_out = param.shape[0]
                     n_dims = fan_in * fan_out
