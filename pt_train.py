@@ -46,7 +46,6 @@ def main():
     parser.add_argument("--learning_rate", type=float, default=1e-3)
     parser.add_argument("--max_grad_norm", type=float, default=5.6)
     parser.add_argument("--mixed_precision", action="store_true")
-    parser.add_argument("--optimizer", type=str, default="adam", choices=["adam", "ranger21", "adan"])
     # These parameters control the data pipeline
     parser.add_argument("--dataset_path", type=Path, required=True)
     parser.add_argument("--batch_size", type=int, default=1024)
@@ -94,7 +93,7 @@ def main():
         dataloader = torch.utils.data.DataLoader(dataset, batch_size=None, pin_memory=True)
 
     precision = 16 if args.mixed_precision else 32
-    trainer = pl.Trainer(accelerator="gpu", gpus=1, precision=precision, limit_train_batches=8192, max_epochs=100,
+    trainer = pl.Trainer(accelerator="gpu", gpus=1, precision=precision, limit_train_batches=8192, max_epochs=1,
                          default_root_dir=args.save_dir)
     trainer.fit(model, dataloader)
 

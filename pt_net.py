@@ -10,8 +10,6 @@ from torch import nn
 from collections import OrderedDict
 from typing import Optional, NamedTuple
 import pytorch_lightning as pl
-from pytorch_optimizer import Ranger21
-from torch_adan import Adan
 from math import prod, sqrt
 
 
@@ -107,12 +105,5 @@ class LeelaZeroNet(pl.LightningModule):
         return total_loss
 
     def configure_optimizers(self):
-        if self.optimizer == 'adam':
-            optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
-        elif self.optimizer == 'ranger21':
-            optimizer = Ranger21(self.parameters(), lr=self.learning_rate, num_iterations=8192, weight_decay=0.)
-        elif self.optimizer == 'adan':
-            optimizer = Adan(self.parameters(), lr=self.learning_rate)
-        else:
-            raise ValueError("Unknown optimizer!")
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
         return optimizer

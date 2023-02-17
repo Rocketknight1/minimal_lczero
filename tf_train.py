@@ -3,7 +3,6 @@ import tensorflow as tf
 from argparse import ArgumentParser
 from pathlib import Path
 from new_data_pipeline import ARRAY_SHAPES_WITHOUT_BATCH, make_callable
-from tf_adan import TFAdan
 
 def get_schedule_function(
     starting_lr, reduce_lr_every_n_epochs, reduce_lr_factor, min_learning_rate
@@ -37,7 +36,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_workers", type=int, default=4)
     parser.add_argument("--shuffle_buffer_size", type=int, default=2 ** 19)
     parser.add_argument("--skip_factor", type=int, default=32)
-    parser.add_argument("--optimizer", type=str, choices=["adam", "adan"], default="adam")
+    parser.add_argument("--optimizer", type=str, choices=["adam", "lion"], default="adam")
     # These parameters control the loss calculation. They should not be changed unless you
     # know what you're doing, as the loss values you get will not be comparable with other
     # people's unless they are kept at the defaults.
@@ -59,8 +58,15 @@ if __name__ == "__main__":
         moves_left_loss_weight=args.moves_left_loss_weight,
         q_ratio=args.q_ratio,
     )
-    if args.optimizer == "adan":
-        optimizer = TFAdan(args.learning_rate, global_clipnorm=args.max_grad_norm)
+    if args.optimizer == "lion":
+        try:
+            from lion_tf import Lion
+        except ImportError:
+            raise ImportError(
+                "Lion optimizer not installed. Please install it with "
+                "pip install git+https://github.com/Rocketknight1/lion-tf.git"
+            )
+        optimizer = Lion(args.learning_rate, global_clipnorm=args.max_grad_norm)
     else:
         optimizer = tf.keras.optimizers.Adam(args.learning_rate, global_clipnorm=args.max_grad_norm)
     if args.mixed_precision:
