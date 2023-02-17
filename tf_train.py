@@ -47,7 +47,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if args.mixed_precision:
         tf.keras.mixed_precision.set_global_policy("mixed_float16")
-    tf.config.optimizer.set_jit(True)
     model = LeelaZeroNet(
         num_filters=args.num_filters,
         num_residual_blocks=args.num_residual_blocks,
@@ -93,7 +92,7 @@ if __name__ == "__main__":
                 log_dir=args.tensorboard_dir, update_freq="batch", histogram_freq=1
             )
         )
-    model.compile(optimizer=optimizer)
+    model.compile(optimizer=optimizer, jit_compile=True)
     array_shapes = [
         tuple([args.batch_size] + list(shape)) for shape in ARRAY_SHAPES_WITHOUT_BATCH
     ]
