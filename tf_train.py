@@ -108,5 +108,5 @@ if __name__ == "__main__":
     )
     dataset = tf.data.Dataset.from_generator(
         callable_gen, output_signature=output_signature
-    ).prefetch(10)
+    ).prefetch(tf.data.AUTOTUNE)
     model.fit(dataset, epochs=999, steps_per_epoch=8192, callbacks=callbacks)

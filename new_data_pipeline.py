@@ -294,11 +294,10 @@ def multiprocess_generator(
             random_indices = rng.choice(
                 shuffle_buffer_size, size=batch_size, replace=False
             )
+            # I tried using np.take() to fill pre-allocated arrays, but it wasn't any faster
             batch = tuple(
                 [shuffle_buffer[random_indices] for shuffle_buffer in shuffle_buffers]
             )
-            # tf.data note: Once you yield a batch to tf.data, you can immediately reuse the buffer you yielded
-            # The generator will not continue until tf.data has copied it
             yield batch
             for arr, shuffle_buffer in zip(shared_arrs, shuffle_buffers):
                 shuffle_buffer[random_indices] = arr
@@ -322,21 +321,33 @@ def make_callable(chunk_dir, batch_size, num_workers, skip_factor, shuffle_buffe
 
 def main():
     import sys
+    import tensorflow as tf
 
     test_dir = Path(sys.argv[1])
     batch_size = 1024
     num_workers = 16
     shuffle_buffer_size = 2 ** 19
     skip_factor = 32
-    gen = multiprocess_generator(
+    gen_callable = make_callable(
         chunk_dir=test_dir,
         batch_size=batch_size,
         num_workers=num_workers,
         skip_factor=skip_factor,
         shuffle_buffer_size=shuffle_buffer_size,
     )
-    for _ in tqdm(gen):
+    array_shapes = [
+        tuple([batch_size] + list(shape)) for shape in ARRAY_SHAPES_WITHOUT_BATCH
+    ]
+    output_signature = tuple(
+        [tf.TensorSpec(shape=shape, dtype=tf.float32) for shape in array_shapes]
+    )
+    gen = tf.data.Dataset.from_generator(
+        gen_callable,
+        output_signature=output_signature
+    ).prefetch(tf.data.AUTOTUNE)
+    for _ in tqdm(gen, smoothing=0.01):
         pass
+
 
 
 if __name__ == "__main__":
