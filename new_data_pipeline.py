@@ -6,6 +6,7 @@ import deflate
 import zstandard
 from multiprocessing import get_context
 from multiprocessing.shared_memory import SharedMemory
+from numpy.random import default_rng
 
 RECORD_SIZE = 8356
 ARRAY_SHAPES_WITHOUT_BATCH = [(112, 64), (1858,), (3,), (3,), (1,)]
@@ -101,10 +102,13 @@ def extract_inputs_outputs_if1(raw):
 
 
 def offset_generator(batch_size, record_size, skip_factor, random):
+    # The offset generator is a generator that yields batch_size random offsets
+    # from a range up to batch_size * skip_factor
     initial_offset = 0
+    rng = default_rng()
     while True:
         if random:
-            retained_indices = np.random.choice(
+            retained_indices = rng.choice(
                 batch_size * skip_factor, size=batch_size, replace=False
             )
         else:
@@ -280,18 +284,21 @@ def multiprocess_generator(
         array_ready_events[proc].clear()
         main_process_access_events[proc].set()
 
+    rng = default_rng()
     while True:
         for array_ready_event, main_process_access_event, shared_arrs in zip(
             array_ready_events, main_process_access_events, shared_arrays
         ):
             if not array_ready_event.is_set():
                 continue
-            random_indices = np.random.choice(
+            random_indices = rng.choice(
                 shuffle_buffer_size, size=batch_size, replace=False
             )
             batch = tuple(
                 [shuffle_buffer[random_indices] for shuffle_buffer in shuffle_buffers]
             )
+            # tf.data note: Once you yield a batch to tf.data, you can immediately reuse the buffer you yielded
+            # The generator will not continue until tf.data has copied it
             yield batch
             for arr, shuffle_buffer in zip(shared_arrs, shuffle_buffers):
                 shuffle_buffer[random_indices] = arr
