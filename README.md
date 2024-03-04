@@ -47,7 +47,7 @@ These assume the input is a flat tensor of shape (batch, hidden_dim).
 
 ### Where do I get data? How do I load it?
 
-There's a standard dataset [here](https://drive.google.com/drive/folders/1kPVhp9unMFFMrm5KpRw21HGhXUgAZPjo?usp=sharing).
+There's a standard dataset [here](https://huggingface.co/datasets/Rocketknight1/leela_training_data/tree/main).
 Each tarball contains one day of training data from the `test60` run. All data has been rescored and recompressed
 with zstandard and is ready for training. As the data is quite large (~250GB), I suggest downloading and extracting only
 a single file to start, and only downloading the whole set when your model is ready and you want to get accurate
